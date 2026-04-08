@@ -94,6 +94,46 @@ st.markdown("""
   }
   .metric-val { font-family: 'DM Serif Display', serif; font-size: 1.8rem; color: #1a3a5c; }
   .metric-lbl { font-size: 0.8rem; color: #6b7280; margin-top: 2px; }
+
+  /* DASHBOARD */
+  .kpi-card {
+    background: #fff; border-radius: 16px; padding: 22px 24px;
+    border: 1px solid #e5e7eb; box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    transition: transform 0.2s ease;
+  }
+  .kpi-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
+  .kpi-num { font-family: 'DM Serif Display', serif; font-size: 2.4rem; line-height: 1; }
+  .kpi-lbl { font-size: 0.82rem; color: #6b7280; margin-top: 4px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+  .kpi-delta { font-size: 0.8rem; margin-top: 6px; font-weight: 600; }
+  .kpi-red   { color: #e11d48; }
+  .kpi-green { color: #16a34a; }
+  .kpi-blue  { color: #2563eb; }
+  .kpi-amber { color: #d97706; }
+
+  /* ALERTES */
+  .alert-card {
+    background: #fff; border-radius: 12px; padding: 16px 20px; margin: 8px 0;
+    border: 1px solid #fee2e2; border-left: 5px solid #e11d48;
+    box-shadow: 0 2px 8px rgba(225,29,72,0.08);
+    display: flex; align-items: flex-start; gap: 14px;
+  }
+  .alert-card.warn {
+    border-color: #fef3c7; border-left-color: #d97706;
+    box-shadow: 0 2px 8px rgba(217,119,6,0.08);
+  }
+  .alert-card.info {
+    border-color: #dbeafe; border-left-color: #2563eb;
+    box-shadow: 0 2px 8px rgba(37,99,235,0.08);
+  }
+  .alert-icon { font-size: 1.5rem; flex-shrink: 0; margin-top: 2px; }
+  .alert-body { flex: 1; }
+  .alert-title { font-weight: 600; font-size: 0.95rem; color: #111827; margin: 0 0 3px 0; }
+  .alert-desc  { font-size: 0.85rem; color: #6b7280; margin: 0; }
+  .alert-meta  { font-size: 0.75rem; color: #9ca3af; margin-top: 5px; }
+
+  /* DONUT placeholder */
+  .progress-bar-wrap { background: #f1f5f9; border-radius: 8px; height: 10px; overflow: hidden; margin: 6px 0; }
+  .progress-bar-fill { height: 100%; border-radius: 8px; transition: width 0.4s ease; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -676,6 +716,336 @@ def generer_pdf(patient_nom, r_carieux, r_paro, diversite, historique_df, plan, 
 
 
 # ============================================================
+# MOTEUR DASHBOARD & ALERTES
+# ============================================================
+from datetime import datetime, timedelta
+
+def calculer_alertes(patients: dict) -> list:
+    """
+    Génère la liste des alertes actives pour tous les patients.
+    Types : urgence clinique, rappel de contrôle, dégradation, première visite manquante.
+    """
+    alertes = []
+    today = date.today()
+
+    for nom, p in patients.items():
+        s_mutans = p["s_mutans"]
+        p_gingivalis = p["p_gingivalis"]
+        diversite = p["diversite"]
+        hist = p["historique"]
+
+        # --- Alertes cliniques critiques ---
+        if p_gingivalis > 1.5:
+            alertes.append({
+                "type": "urgence", "patient": nom, "id": p["id"],
+                "titre": f"P. gingivalis critique ({p_gingivalis}%)",
+                "desc": "Taux de P. gingivalis très élevé — risque parodontal sévère et risque systémique élevé (CV, Alzheimer).",
+                "priorite": 1, "icone": "🚨",
+                "action": "Consultation parodontale urgente"
+            })
+        elif s_mutans > 6.0:
+            alertes.append({
+                "type": "urgence", "patient": nom, "id": p["id"],
+                "titre": f"S. mutans critique ({s_mutans}%)",
+                "desc": "Taux de S. mutans très élevé — caries actives probables, intervention immédiate recommandée.",
+                "priorite": 1, "icone": "🚨",
+                "action": "Bilan carie et soin urgents"
+            })
+
+        # --- Rappels de contrôle ---
+        if not hist.empty:
+            try:
+                derniere_date_str = hist.iloc[-1]["Date"]
+                derniere_date = datetime.strptime(derniere_date_str, "%d/%m/%Y").date()
+                en_alerte = s_mutans > 3.0 or p_gingivalis > 0.5 or diversite < 50
+                delai_semaines = 8 if en_alerte and (p_gingivalis > 1.5 or s_mutans > 6.0) else 12 if en_alerte else 24
+                delai_jours = delai_semaines * 7
+                date_prochain = derniere_date + timedelta(days=delai_jours)
+                jours_restants = (date_prochain - today).days
+
+                if jours_restants < 0:
+                    alertes.append({
+                        "type": "urgence", "patient": nom, "id": p["id"],
+                        "titre": f"Contrôle en retard de {abs(jours_restants)} jours",
+                        "desc": f"Dernier examen le {derniere_date_str}. Contrôle prévu tous les {delai_semaines} semaines.",
+                        "priorite": 2, "icone": "⏰",
+                        "action": "Planifier rendez-vous"
+                    })
+                elif jours_restants <= 14:
+                    alertes.append({
+                        "type": "warn", "patient": nom, "id": p["id"],
+                        "titre": f"Contrôle dans {jours_restants} jours",
+                        "desc": f"Rappel : prochain examen recommandé le {date_prochain.strftime('%d/%m/%Y')}.",
+                        "priorite": 3, "icone": "📅",
+                        "action": "Envoyer rappel au patient"
+                    })
+            except Exception:
+                pass
+
+        # --- Dégradation détectée (comparaison 2 dernières visites) ---
+        if len(hist) >= 2:
+            try:
+                avant = hist.iloc[-2]
+                apres = hist.iloc[-1]
+                dg_mutans = float(apres["S. mutans (%)"]) - float(avant["S. mutans (%)"])
+                dg_paro   = float(apres["P. gingiv. (%)"]) - float(avant["P. gingiv. (%)"])
+                dg_div    = float(avant.get("Diversite (%)", avant.get("Diversité (%)", 70))) - \
+                            float(apres.get("Diversite (%)", apres.get("Diversité (%)", 70)))
+                if dg_paro > 0.3:
+                    alertes.append({
+                        "type": "warn", "patient": nom, "id": p["id"],
+                        "titre": f"Dégradation parodontale (+{dg_paro:.1f}% P. gingivalis)",
+                        "desc": "Augmentation significative de P. gingivalis entre deux visites.",
+                        "priorite": 2, "icone": "📈",
+                        "action": "Adapter le protocole de traitement"
+                    })
+                if dg_mutans > 1.0:
+                    alertes.append({
+                        "type": "warn", "patient": nom, "id": p["id"],
+                        "titre": f"Dégradation cariogène (+{dg_mutans:.1f}% S. mutans)",
+                        "desc": "Augmentation de S. mutans entre deux visites — revoir l'hygiène et l'alimentation.",
+                        "priorite": 3, "icone": "📈",
+                        "action": "Revoir le plan nutritionnel"
+                    })
+            except Exception:
+                pass
+
+        # --- Patients sans analyse depuis longtemps ---
+        if hist.empty:
+            alertes.append({
+                "type": "info", "patient": nom, "id": p["id"],
+                "titre": "Aucune analyse enregistrée",
+                "desc": "Ce patient n'a pas encore d'analyse microbiome dans le dossier.",
+                "priorite": 4, "icone": "📋",
+                "action": "Planifier un examen initial"
+            })
+
+    return sorted(alertes, key=lambda x: x["priorite"])
+
+
+def calculer_stats_cabinet(patients: dict) -> dict:
+    """Calcule les KPIs globaux du cabinet."""
+    total = len(patients)
+    if total == 0:
+        return {}
+
+    alertes_count = sum(1 for p in patients.values()
+                        if p["s_mutans"] > 3.0 or p["p_gingivalis"] > 0.5 or p["diversite"] < 50)
+    stables_count = total - alertes_count
+
+    avg_mutans    = sum(p["s_mutans"] for p in patients.values()) / total
+    avg_paro      = sum(p["p_gingivalis"] for p in patients.values()) / total
+    avg_diversite = sum(p["diversite"] for p in patients.values()) / total
+
+    risque_cardio_eleve = sum(
+        1 for p in patients.values()
+        if calculer_score_systemique(p["s_mutans"], p["p_gingivalis"], p["diversite"])["cardiovasculaire"]["level"] == "high"
+    )
+    risque_alz_eleve = sum(
+        1 for p in patients.values()
+        if calculer_score_systemique(p["s_mutans"], p["p_gingivalis"], p["diversite"])["alzheimer"]["level"] == "high"
+    )
+
+    total_visites = sum(len(p["historique"]) for p in patients.values())
+
+    return {
+        "total": total,
+        "alertes": alertes_count,
+        "stables": stables_count,
+        "pct_alerte": round(alertes_count / total * 100),
+        "avg_mutans": round(avg_mutans, 2),
+        "avg_paro": round(avg_paro, 2),
+        "avg_diversite": round(avg_diversite, 1),
+        "risque_cardio_eleve": risque_cardio_eleve,
+        "risque_alz_eleve": risque_alz_eleve,
+        "total_visites": total_visites,
+    }
+
+
+def render_dashboard(patients: dict):
+    """Affiche le dashboard analytics complet du cabinet."""
+    stats = calculer_stats_cabinet(patients)
+    alertes = calculer_alertes(patients)
+
+    st.markdown("""
+    <div class="ob-header">
+        <h1>📊 Dashboard Cabinet</h1>
+        <p>Vue analytique en temps réel · Alertes · KPIs · Tendances</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── KPIs ligne 1
+    k1, k2, k3, k4, k5 = st.columns(5)
+    with k1:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-num kpi-blue">{stats['total']}</div>
+            <div class="kpi-lbl">Patients Total</div>
+            <div class="kpi-delta kpi-blue">📂 {stats['total_visites']} visites</div>
+        </div>""", unsafe_allow_html=True)
+    with k2:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-num kpi-red">{stats['alertes']}</div>
+            <div class="kpi-lbl">En Alerte</div>
+            <div class="kpi-delta kpi-red">⚠️ {stats['pct_alerte']}% du cabinet</div>
+        </div>""", unsafe_allow_html=True)
+    with k3:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-num kpi-green">{stats['stables']}</div>
+            <div class="kpi-lbl">Stables</div>
+            <div class="kpi-delta kpi-green">✅ {100 - stats['pct_alerte']}% du cabinet</div>
+        </div>""", unsafe_allow_html=True)
+    with k4:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-num kpi-amber">{stats['risque_cardio_eleve']}</div>
+            <div class="kpi-lbl">Risque Cardio Élevé</div>
+            <div class="kpi-delta kpi-amber">❤️ Suivi systémique requis</div>
+        </div>""", unsafe_allow_html=True)
+    with k5:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-num kpi-amber">{stats['risque_alz_eleve']}</div>
+            <div class="kpi-lbl">Risque Neuro Élevé</div>
+            <div class="kpi-delta kpi-amber">🧠 P. gingivalis critique</div>
+        </div>""", unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Ligne 2 : moyennes cabinet
+    st.markdown("#### 🧬 Moyennes Microbiome du Cabinet")
+    col_m1, col_m2, col_m3 = st.columns(3)
+
+    def bar(val, max_val, color):
+        pct = min(100, val / max_val * 100)
+        return f"""<div class="progress-bar-wrap">
+            <div class="progress-bar-fill" style="width:{pct:.0f}%; background:{color};"></div>
+        </div>"""
+
+    with col_m1:
+        color = "#e11d48" if stats["avg_mutans"] > 3 else "#16a34a"
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div style="font-size:0.8rem; color:#6b7280; font-weight:600;">S. MUTANS MOYEN</div>
+            <div class="kpi-num" style="color:{color};">{stats['avg_mutans']}%</div>
+            <div style="font-size:0.75rem; color:#9ca3af;">Normal &lt; 3%</div>
+            {bar(stats["avg_mutans"], 8, color)}
+        </div>""", unsafe_allow_html=True)
+    with col_m2:
+        color = "#e11d48" if stats["avg_paro"] > 0.5 else "#16a34a"
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div style="font-size:0.8rem; color:#6b7280; font-weight:600;">P. GINGIVALIS MOYEN</div>
+            <div class="kpi-num" style="color:{color};">{stats['avg_paro']}%</div>
+            <div style="font-size:0.75rem; color:#9ca3af;">Normal &lt; 0.5%</div>
+            {bar(stats["avg_paro"], 2, color)}
+        </div>""", unsafe_allow_html=True)
+    with col_m3:
+        color = "#16a34a" if stats["avg_diversite"] >= 65 else "#d97706" if stats["avg_diversite"] >= 50 else "#e11d48"
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div style="font-size:0.8rem; color:#6b7280; font-weight:600;">DIVERSITÉ MOYENNE</div>
+            <div class="kpi-num" style="color:{color};">{stats['avg_diversite']}/100</div>
+            <div style="font-size:0.75rem; color:#9ca3af;">Optimal &gt; 65</div>
+            {bar(stats["avg_diversite"], 100, color)}
+        </div>""", unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Ligne 3 : alertes + tableau patients
+    col_alerts, col_patients = st.columns([1, 2])
+
+    with col_alerts:
+        nb_alertes_actives = len(alertes)
+        st.markdown(f"#### 🔔 Alertes Actives `{nb_alertes_actives}`")
+        if not alertes:
+            st.success("✅ Aucune alerte active — tous les patients sont dans les paramètres.")
+        else:
+            for a in alertes[:8]:  # max 8 dans la vue dashboard
+                css = "alert-card" if a["type"] == "urgence" else "alert-card warn" if a["type"] == "warn" else "alert-card info"
+                st.markdown(f"""
+                <div class="{css}">
+                    <div class="alert-icon">{a['icone']}</div>
+                    <div class="alert-body">
+                        <div class="alert-title">{a['patient']} — {a['titre']}</div>
+                        <div class="alert-desc">{a['desc']}</div>
+                        <div class="alert-meta">👉 {a['action']}</div>
+                    </div>
+                </div>""", unsafe_allow_html=True)
+
+    with col_patients:
+        st.markdown("#### 👥 État du Cabinet")
+        rows = []
+        for nom, p in patients.items():
+            ea = p["s_mutans"] > 3.0 or p["p_gingivalis"] > 0.5 or p["diversite"] < 50
+            sys_scores = calculer_score_systemique(p["s_mutans"], p["p_gingivalis"], p["diversite"])
+            top_sys = max(sys_scores.items(), key=lambda x: x[1]["score"])
+            nb_alertes_p = sum(1 for a in alertes if a["patient"] == nom)
+            rows.append({
+                "Nom": nom,
+                "Statut": "🔴 Alerte" if ea else "🟢 Stable",
+                "S. mutans": f"{p['s_mutans']}%",
+                "P. gingivalis": f"{p['p_gingivalis']}%",
+                "Diversité": f"{p['diversite']}/100",
+                "Top Risque": f"{top_sys[1]['icon']} {top_sys[1]['score']}/100",
+                "Alertes": nb_alertes_p if nb_alertes_p else "—"
+            })
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+        # Graphique évolution diversité tous patients
+        st.markdown("#### 📈 Tendance Diversité Microbienne")
+        chart_data = {}
+        for nom, p in patients.items():
+            hist = p["historique"]
+            if len(hist) >= 2:
+                div_col = next((c for c in ["Diversite (%)", "Diversité (%)"] if c in hist.columns), None)
+                if div_col:
+                    chart_data[nom] = hist[div_col].astype(float).tolist()
+        if chart_data:
+            max_len = max(len(v) for v in chart_data.values())
+            df_chart = pd.DataFrame(
+                {k: v + [None] * (max_len - len(v)) for k, v in chart_data.items()}
+            )
+            st.line_chart(df_chart)
+        else:
+            st.caption("Pas assez d'historique pour afficher les tendances.")
+
+    st.markdown("---")
+
+    # ── Tableau complet des alertes
+    st.markdown(f"#### 🗂️ Toutes les Alertes ({len(alertes)})")
+    if alertes:
+        filtre_type = st.selectbox("Filtrer par type", ["Toutes", "🚨 Urgences", "⚠️ Avertissements", "ℹ️ Infos"],
+                                   label_visibility="collapsed")
+        filtre_map = {"Toutes": None, "🚨 Urgences": "urgence", "⚠️ Avertissements": "warn", "ℹ️ Infos": "info"}
+        alertes_filtrees = [a for a in alertes if filtre_map[filtre_type] is None or a["type"] == filtre_map[filtre_type]]
+
+        for a in alertes_filtrees:
+            css = "alert-card" if a["type"] == "urgence" else "alert-card warn" if a["type"] == "warn" else "alert-card info"
+            col_a, col_btn = st.columns([5, 1])
+            with col_a:
+                st.markdown(f"""
+                <div class="{css}">
+                    <div class="alert-icon">{a['icone']}</div>
+                    <div class="alert-body">
+                        <div class="alert-title">{a['id']} · {a['patient']} — {a['titre']}</div>
+                        <div class="alert-desc">{a['desc']}</div>
+                        <div class="alert-meta">👉 {a['action']}</div>
+                    </div>
+                </div>""", unsafe_allow_html=True)
+            with col_btn:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("Ouvrir →", key=f"alerte_btn_{a['patient']}_{a['titre'][:10]}"):
+                    st.session_state.patient_sel = a["patient"]
+                    st.session_state.vue = "dossier"
+                    st.rerun()
+    else:
+        st.success("✅ Aucune alerte active.")
+
+
+# ============================================================
 # DONNÉES INITIALES
 # ============================================================
 def donnees_initiales():
@@ -730,7 +1100,7 @@ def donnees_initiales():
 # ============================================================
 for key, val in [
     ("mode", "choix"), ("connecte", False), ("patient_sel", "Jean Dupont"),
-    ("vue", "dossier"), ("patient_connecte", None)
+    ("vue", "dashboard"), ("patient_connecte", None)
 ]:
     if key not in st.session_state:
         st.session_state[key] = val
@@ -960,21 +1330,26 @@ elif st.session_state.mode == "praticien":
         # SIDEBAR
         st.sidebar.markdown("## 🦷 OralBiome")
         st.sidebar.markdown("---")
-        sc1, sc2 = st.sidebar.columns(2)
+        sc1, sc2, sc3 = st.sidebar.columns(3)
         with sc1:
-            if st.button("👥 Patients", use_container_width=True):
-                st.session_state.vue = "liste"; st.rerun()
+            if st.button("📊", use_container_width=True, help="Dashboard"):
+                st.session_state.vue = "dashboard"; st.rerun()
         with sc2:
-            if st.button("➕ Nouveau", use_container_width=True):
+            if st.button("👥", use_container_width=True, help="Patients"):
+                st.session_state.vue = "liste"; st.rerun()
+        with sc3:
+            if st.button("➕", use_container_width=True, help="Nouveau patient"):
                 st.session_state.vue = "nouveau"; st.rerun()
         st.sidebar.markdown("---")
 
         nb_patients = len(st.session_state.patients)
         nb_alertes = sum(1 for p in st.session_state.patients.values()
                          if p["s_mutans"] > 3.0 or p["p_gingivalis"] > 0.5 or p["diversite"] < 50)
-        ms1, ms2 = st.sidebar.columns(2)
+        nb_alertes_actives = len(calculer_alertes(st.session_state.patients))
+        ms1, ms2, ms3 = st.sidebar.columns(3)
         ms1.metric("Patients", nb_patients)
         ms2.metric("Alertes", nb_alertes)
+        ms3.metric("🔔", nb_alertes_actives)
         st.sidebar.markdown("---")
 
         rech = st.sidebar.text_input("Rechercher...", placeholder="Nom ou ID")
@@ -992,8 +1367,12 @@ elif st.session_state.mode == "praticien":
         if st.sidebar.button("Retour accueil", use_container_width=True):
             st.session_state.connecte = False; st.session_state.mode = "choix"; st.rerun()
 
+        # VUE DASHBOARD
+        if st.session_state.vue == "dashboard":
+            render_dashboard(st.session_state.patients)
+
         # VUE LISTE
-        if st.session_state.vue == "liste":
+        elif st.session_state.vue == "liste":
             st.title("👥 Gestion des Patients")
             lf1, lf2, lf3 = st.columns(3)
             with lf1:
