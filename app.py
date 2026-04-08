@@ -198,8 +198,32 @@ def generer_recommandations(s_mutans, p_gingivalis, diversite):
     return plan
 
 
+
 # ============================================================
-# GÉNÉRATION PDF
+# NETTOYAGE TEXTE POUR FPDF
+# ============================================================
+def clean(text):
+    """Nettoie un texte pour fpdf : remplace les caracteres unicode problematiques."""
+    if not isinstance(text, str):
+        text = str(text)
+    replacements = {
+        "\u2019": "'", "\u2018": "'", "\u201c": '"', "\u201d": '"',
+        "\u2013": '-', "\u2014": '-', "\u2026": '...', "\u00a0": ' ',
+        "\u2022": '-', "\u00ab": '"', "\u00bb": '"',
+        "\u00e0": 'a', "\u00e2": 'a', "\u00e9": 'e', "\u00e8": 'e',
+        "\u00ea": 'e', "\u00eb": 'e', "\u00ee": 'i', "\u00ef": 'i',
+        "\u00f4": 'o', "\u00f9": 'u', "\u00fb": 'u', "\u00fc": 'u',
+        "\u00e7": 'c', "\u00c0": 'A', "\u00c9": 'E', "\u00c8": 'E',
+        "\u00ce": 'I', "\u00d4": 'O', "\u00d9": 'U', "\u00db": 'U',
+        "\u00c7": 'C',
+    }
+    for char, replacement in replacements.items():
+        text = text.replace(char, replacement)
+    return text.encode('latin-1', errors='replace').decode('latin-1')
+
+
+# ============================================================
+# GENERATION PDF
 # ============================================================
 def generer_pdf(patient_nom, r_carieux, r_paro, diversite, historique_df, plan):
     pdf = FPDF()
@@ -210,16 +234,16 @@ def generer_pdf(patient_nom, r_carieux, r_paro, diversite, historique_df, plan):
     pdf.rect(0, 0, 210, 32, 'F')
     pdf.set_font("Helvetica", 'B', size=18)
     pdf.set_text_color(255, 255, 255)
-    pdf.cell(200, 16, txt="OralBiome - Rapport Patient", ln=True, align='C')
+    pdf.cell(200, 16, txt=clean("OralBiome - Rapport Patient"), ln=True, align='C')
     pdf.set_font("Helvetica", size=10)
-    pdf.cell(200, 10, txt="Microbiome Oral Predictif | Rapport Personnalise", ln=True, align='C')
+    pdf.cell(200, 10, txt=clean("Microbiome Oral Predictif | Rapport Personnalise"), ln=True, align='C')
     pdf.set_text_color(0, 0, 0)
     pdf.ln(8)
 
     pdf.set_font("Helvetica", 'B', size=12)
-    pdf.cell(100, 8, txt=f"Patient : {patient_nom}", ln=False)
+    pdf.cell(100, 8, txt=clean(f"Patient : {patient_nom}"), ln=False)
     pdf.set_font("Helvetica", size=11)
-    pdf.cell(100, 8, txt=f"Date : {date.today().strftime('%d/%m/%Y')}", ln=True, align='R')
+    pdf.cell(100, 8, txt=clean(f"Date : {date.today().strftime('%d/%m/%Y')}"), ln=True, align='R')
     pdf.ln(4)
 
     # Profil
@@ -233,7 +257,7 @@ def generer_pdf(patient_nom, r_carieux, r_paro, diversite, historique_df, plan):
         pdf.set_fill_color(220, 53, 69)
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Helvetica", 'B', size=12)
-    pdf.cell(190, 9, txt=f"  Profil : {profil_label}", ln=True, fill=True)
+    pdf.cell(190, 9, txt=clean(f"  Profil : {profil_label}"), ln=True, fill=True)
     pdf.set_text_color(0, 0, 0)
     pdf.set_font("Helvetica", size=10)
     pdf.multi_cell(190, 6, txt=plan["profil_description"])
@@ -242,34 +266,34 @@ def generer_pdf(patient_nom, r_carieux, r_paro, diversite, historique_df, plan):
     # Resultats
     pdf.set_font("Helvetica", 'B', size=12)
     pdf.set_fill_color(214, 228, 247)
-    pdf.cell(190, 8, txt="  Resultats de l'Analyse", ln=True, fill=True)
+    pdf.cell(190, 8, txt=clean("  Resultats de l'Analyse"), ln=True, fill=True)
     pdf.ln(3)
     pdf.set_font("Helvetica", size=11)
     for label, valeur in [("Risque Carieux", r_carieux), ("Risque Parodontal", r_paro)]:
         c = (220, 53, 69) if valeur in ["Eleve", "Eleve"] else (40, 167, 69)
         pdf.set_text_color(*c)
-        pdf.cell(190, 7, txt=f"  {label} : {valeur}", ln=True)
+        pdf.cell(190, 7, txt=clean(f"  {label} : {valeur}"), ln=True)
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(190, 7, txt=f"  Score de Diversite : {diversite}/100  (optimal > 65)", ln=True)
+    pdf.cell(190, 7, txt=clean(f"  Score de Diversite : {diversite}/100  (optimal > 65)"), ln=True)
     pdf.ln(6)
 
     # Priorites
     if plan["priorites"]:
         pdf.set_font("Helvetica", 'B', size=12)
         pdf.set_fill_color(214, 228, 247)
-        pdf.cell(190, 8, txt="  Plan d'Action", ln=True, fill=True)
+        pdf.cell(190, 8, txt=clean("  Plan d'Action"), ln=True, fill=True)
         pdf.ln(3)
         for i, p in enumerate(plan["priorites"]):
             pdf.set_font("Helvetica", 'B', size=11)
             pdf.set_text_color(27, 79, 138)
-            pdf.cell(190, 7, txt=f"  Priorite {i+1} : {p['titre']}", ln=True)
+            pdf.cell(190, 7, txt=clean(f"  Priorite {i+1} : {p['titre']}"), ln=True)
             pdf.set_font("Helvetica", 'I', size=9)
             pdf.set_text_color(80, 80, 80)
-            pdf.multi_cell(185, 5, txt=f"    {p['explication']}")
+            pdf.multi_cell(185, 5, txt=clean(f"    {p['explication']}"))
             pdf.set_font("Helvetica", size=10)
             pdf.set_text_color(0, 0, 0)
             for action in p["actions"]:
-                pdf.cell(190, 6, txt=f"    - {action}", ln=True)
+                pdf.cell(190, 6, txt=clean(f"    - {action}"), ln=True)
             pdf.ln(3)
 
     # Nouvelle page : Nutrition
@@ -278,16 +302,16 @@ def generer_pdf(patient_nom, r_carieux, r_paro, diversite, historique_df, plan):
     pdf.rect(0, 0, 210, 12, 'F')
     pdf.set_font("Helvetica", 'B', size=13)
     pdf.set_text_color(255, 255, 255)
-    pdf.cell(190, 12, txt="  Plan Nutritionnel Personnalise - OralBiome", ln=True, align='C')
+    pdf.cell(190, 12, txt=clean("  Plan Nutritionnel Personnalise - OralBiome"), ln=True, align='C')
     pdf.set_text_color(0, 0, 0)
     pdf.ln(4)
 
     if plan["aliments_favoriser"] or plan["aliments_eviter"]:
         pdf.set_font("Helvetica", 'B', size=11)
         pdf.set_fill_color(212, 237, 218)
-        pdf.cell(93, 8, txt="  Aliments a Favoriser", ln=False, fill=True)
+        pdf.cell(93, 8, txt=clean("  Aliments a Favoriser"), ln=False, fill=True)
         pdf.set_fill_color(248, 215, 218)
-        pdf.cell(97, 8, txt="  Aliments a Limiter / Eviter", ln=True, fill=True)
+        pdf.cell(97, 8, txt=clean("  Aliments a Limiter / Eviter"), ln=True, fill=True)
         pdf.ln(2)
         pdf.set_font("Helvetica", size=9)
         max_items = max(len(plan["aliments_favoriser"]), len(plan["aliments_eviter"]))
@@ -296,56 +320,56 @@ def generer_pdf(patient_nom, r_carieux, r_paro, diversite, historique_df, plan):
             evi = plan["aliments_eviter"][i][:53] if i < len(plan["aliments_eviter"]) else ""
             fill = i % 2 == 0
             pdf.set_fill_color(240, 255, 240) if fill else pdf.set_fill_color(255, 255, 255)
-            pdf.cell(93, 6, txt=f"  {fav}", border=0, ln=False, fill=fill)
+            pdf.cell(93, 6, txt=clean(f"  {fav}"), border=0, ln=False, fill=fill)
             pdf.set_fill_color(255, 245, 245) if fill else pdf.set_fill_color(255, 255, 255)
-            pdf.cell(97, 6, txt=f"  {evi}", border=0, ln=True, fill=fill)
+            pdf.cell(97, 6, txt=clean(f"  {evi}"), border=0, ln=True, fill=fill)
         pdf.ln(5)
 
     if plan["probiotiques"]:
         pdf.set_font("Helvetica", 'B', size=12)
         pdf.set_fill_color(214, 228, 247)
-        pdf.cell(190, 8, txt="  Probiotiques Oraux Recommandes", ln=True, fill=True)
+        pdf.cell(190, 8, txt=clean("  Probiotiques Oraux Recommandes"), ln=True, fill=True)
         pdf.ln(2)
         for prob in plan["probiotiques"]:
             pdf.set_font("Helvetica", 'B', size=10)
             pdf.set_text_color(27, 79, 138)
-            pdf.cell(190, 6, txt=f"  {prob['nom']}", ln=True)
+            pdf.cell(190, 6, txt=clean(f"  {prob['nom']}"), ln=True)
             pdf.set_font("Helvetica", size=9)
             pdf.set_text_color(0, 0, 0)
-            pdf.cell(190, 5, txt=f"    Forme : {prob['forme']}", ln=True)
-            pdf.cell(190, 5, txt=f"    Duree : {prob['duree']}", ln=True)
-            pdf.cell(190, 5, txt=f"    Benefice : {prob['benefice']}", ln=True)
-            pdf.cell(190, 5, txt=f"    Produits : {prob['marques']}", ln=True)
+            pdf.cell(190, 5, txt=clean(f"    Forme : {prob['forme']}"), ln=True)
+            pdf.cell(190, 5, txt=clean(f"    Duree : {prob['duree']}"), ln=True)
+            pdf.cell(190, 5, txt=clean(f"    Benefice : {prob['benefice']}"), ln=True)
+            pdf.cell(190, 5, txt=clean(f"    Produits : {prob['marques']}"), ln=True)
             pdf.ln(3)
 
     # Hygiene
     pdf.set_font("Helvetica", 'B', size=12)
     pdf.set_fill_color(214, 228, 247)
-    pdf.cell(190, 8, txt="  Protocole d'Hygiene Personnalise", ln=True, fill=True)
+    pdf.cell(190, 8, txt=clean("  Protocole d'Hygiene Personnalise"), ln=True, fill=True)
     pdf.ln(2)
     for moment_data in plan["hygiene"]:
         moment = moment_data["moment"].encode('ascii', 'ignore').decode('ascii').strip()
         pdf.set_font("Helvetica", 'B', size=10)
         pdf.set_text_color(27, 79, 138)
-        pdf.cell(190, 6, txt=f"  {moment}", ln=True)
+        pdf.cell(190, 6, txt=clean(f"  {moment}"), ln=True)
         pdf.set_font("Helvetica", size=9)
         pdf.set_text_color(0, 0, 0)
         for action in moment_data["actions"]:
-            pdf.cell(190, 5, txt=f"    - {action}", ln=True)
+            pdf.cell(190, 5, txt=clean(f"    - {action}"), ln=True)
         pdf.ln(2)
 
     # Suivi
     pdf.ln(3)
     pdf.set_fill_color(255, 243, 205)
     pdf.set_font("Helvetica", 'B', size=11)
-    pdf.cell(190, 8, txt=f"  Prochain controle recommande : dans {plan['suivi_semaines']} semaines", ln=True, fill=True)
+    pdf.cell(190, 8, txt=clean(f"  Prochain controle recommande : dans {plan['suivi_semaines']} semaines"), ln=True, fill=True)
 
     # Pied de page
     pdf.ln(6)
     pdf.set_font("Helvetica", 'I', size=8)
     pdf.set_text_color(150, 150, 150)
-    pdf.multi_cell(190, 5, txt="Ce rapport est fourni a titre preventif et informatif. Il ne constitue pas un diagnostic medical.")
-    pdf.cell(190, 5, txt="OralBiome - Microbiome Oral Predictif | contact@oralbiome.com", ln=True, align='C')
+    pdf.multi_cell(190, 5, txt=clean("Ce rapport est fourni a titre preventif et informatif. Il ne constitue pas un diagnostic medical."))
+    pdf.cell(190, 5, txt=clean("OralBiome - Microbiome Oral Predictif | contact@oralbiome.com"), ln=True, align='C')
 
     pdf_output = pdf.output()
     return pdf_output.encode('latin-1') if isinstance(pdf_output, str) else bytes(pdf_output)
