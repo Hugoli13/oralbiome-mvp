@@ -4,54 +4,27 @@ from datetime import date
 from PIL import Image
 from fpdf import FPDF
 
-# --- FONCTION DE GÉNÉRATION DU PDF ---
+# --- FONCTION DE GÉNÉRATION DU PDF (VERSION FINALE) ---
 def generer_pdf(patient_nom, r_carieux, r_paro, diversite):
     pdf = FPDF()
     pdf.add_page()
+    pdf.set_font("Helvetica", size=12)
     
-    # Titre
-    pdf.set_font("Helvetica", 'B', 20)
-    pdf.cell(0, 15, "OralBiome - Rapport Patient", ln=True, align="C")
-    pdf.ln(5)
-    
-    # Informations Patient
-    pdf.set_font("Helvetica", '', 12)
-    pdf.cell(0, 10, f"Patient : {patient_nom}", ln=True)
-    pdf.cell(0, 10, f"Date de l'analyse : {date.today().strftime('%d/%m/%Y')}", ln=True)
+    # Titre et contenu
+    pdf.cell(200, 10, txt="OralBiome - Rapport Patient", ln=True, align='C')
     pdf.ln(10)
-    
-    # Résultats
-    pdf.set_font("Helvetica", 'B', 14)
-    pdf.cell(0, 10, "1. Vos Resultats Cliniques", ln=True)
-    pdf.set_font("Helvetica", '', 12)
-    pdf.cell(0, 10, f"- Risque Carieux : {r_carieux}", ln=True)
-    pdf.cell(0, 10, f"- Risque Parodontal : {r_paro}", ln=True)
-    pdf.cell(0, 10, f"- Score de Diversite : {diversite}/100", ln=True)
+    pdf.cell(200, 10, txt=f"Patient : {patient_nom}", ln=True)
+    pdf.cell(200, 10, txt=f"Date : {date.today().strftime('%d/%m/%Y')}", ln=True)
     pdf.ln(10)
+    pdf.cell(200, 10, txt=f"Risque Carieux : {r_carieux}", ln=True)
+    pdf.cell(200, 10, txt=f"Risque Parodontal : {r_paro}", ln=True)
+    pdf.cell(200, 10, txt=f"Score de Diversite : {diversite}/100", ln=True)
     
-    # Recommandations
-    pdf.set_font("Helvetica", 'B', 14)
-    pdf.cell(0, 10, "2. Plan d'Action & Recommandations", ln=True)
-    pdf.set_font("Helvetica", '', 12)
-    
-    if r_carieux == "Élevé":
-        pdf.multi_cell(0, 10, "- Alerte Carieuse : Reduire les sucres collants. Utiliser un dentifrice remineralisant.")
-    if r_paro == "Élevé":
-        pdf.multi_cell(0, 10, "- Alerte Parodontale : Utilisation de brossettes interdentaires et bain de bouche cible.")
-    if diversite < 50:
-        pdf.multi_cell(0, 10, "- Dysbiose Orale : Cure de probiotiques oraux conseillee pendant 30 jours.")
-    if r_carieux == "Faible" and r_paro == "Faible" and diversite >= 50:
-        pdf.multi_cell(0, 10, "- Profil Equilibre : Votre microbiome est protecteur. Maintenez votre routine !")
-        
-    pdf.ln(15)
-    pdf.set_font("Helvetica", 'I', 10)
-    pdf.cell(0, 10, "Ce rapport ne remplace pas une consultation medicale.", ln=True, align="C")
-    
-    # --- LES LIGNES CI-DESSOUS SONT MAINTENANT BIEN ALIGNÉES ---
+    # On génère le PDF en format bytes pour Streamlit
     pdf_output = pdf.output()
     if isinstance(pdf_output, str):
         return pdf_output.encode('latin-1')
-    return pdf_output
+    return bytes(pdf_output)
 
 # --- CONFIGURATION ---
 st.set_page_config(page_title="OralBiome - Praticien", page_icon="🦷", layout="wide")
@@ -150,7 +123,7 @@ else:
     if risque_carieux == "Faible" and risque_paro == "Faible" and diversite >= 50:
         st.success("✅ **Profil Équilibré :** Le microbiome du patient est protecteur.")
 
-    # LE BOUTON MAGIQUE
+    # LE BOUTON DE TÉLÉCHARGEMENT
     st.markdown("<br>", unsafe_allow_html=True)
     pdf_bytes = generer_pdf(patient_id, risque_carieux, risque_paro, diversite)
     
