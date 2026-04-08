@@ -2,3 +2,4 @@ streamlit
 pandas
 Pillow
 reportlab
+requests>=2.31.0
