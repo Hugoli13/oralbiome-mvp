@@ -1477,8 +1477,8 @@ elif st.session_state.mode == "praticien":
                 st.info(f"Code patient : **{patient.get('code_patient', '')}** — À communiquer au patient pour son accès portail.")
                 st.markdown("---")
 
-                tab1, tab2, tab3, tab4 = st.tabs([
-                    "🧬 Risques Systémiques", "🚨 Plan d'Action", "📸 Analyse Photo", "📂 Historique & PDF"
+                tab1, tab2, tab3, tab4, tab5 = st.tabs([
+                    "🧬 Risques Systémiques", "🚨 Plan d'Action", "🔬 Simulateur", "📸 Analyse Photo", "📂 Historique & PDF"
                 ])
 
                 with tab1:
@@ -1528,6 +1528,182 @@ elif st.session_state.mode == "praticien":
                         st.markdown("---")
 
                 with tab3:
+                    # ══════════════════════════════════════════
+                    # SIMULATEUR "ET SI ?" — VERSION MAXIMALE
+                    # ══════════════════════════════════════════
+                    st.markdown("""
+                    <div style="background:linear-gradient(135deg,#0a1628,#1a3a5c);border-radius:14px;
+                         padding:20px 28px;margin-bottom:20px;">
+                        <h3 style="color:#fff;margin:0;font-family:'DM Serif Display',serif;">
+                            🔬 Simulateur d'Impact Thérapeutique
+                        </h3>
+                        <p style="color:rgba(255,255,255,0.65);margin:6px 0 0 0;font-size:0.9rem;">
+                            Ajustez les biomarqueurs et visualisez l'impact en temps réel sur tous les risques systémiques.
+                            Outil de démonstration patient pendant la consultation.
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    col_sliders, col_results = st.columns([1, 2])
+
+                    with col_sliders:
+                        st.markdown("#### ⚙️ Ajuster les biomarqueurs")
+                        st.caption("Faites glisser pour simuler l'effet d'un traitement")
+
+                        sim_mutans = st.slider(
+                            "S. mutans (%)", 0.0, 10.0, float(s_mutans), step=0.1,
+                            help="Normal < 3% | Bactérie cariogène principale"
+                        )
+                        sim_paro = st.slider(
+                            "P. gingivalis (%)", 0.0, 3.0, float(p_gingivalis), step=0.1,
+                            help="Normal < 0.5% | Pathogène parodontal majeur"
+                        )
+                        sim_div = st.slider(
+                            "Diversité microbienne", 0, 100, int(diversite), step=1,
+                            help="Optimal > 65 | Richesse de la flore orale"
+                        )
+
+                        st.markdown("---")
+
+                        # Projection temporelle
+                        st.markdown("#### 📅 Projection dans le temps")
+                        mois_projection = st.select_slider(
+                            "Horizon de projection",
+                            options=[1, 2, 3, 6, 12],
+                            value=3,
+                            format_func=lambda x: f"{x} mois"
+                        )
+
+                        # Calcul trajectoire : amélioration progressive vers la cible simulée
+                        st.markdown("---")
+                        st.markdown("#### 💊 Protocole simulé")
+                        with_probio  = st.checkbox("Probiotiques oraux", value=True)
+                        with_detartr = st.checkbox("Détartrage / surfaçage", value=False)
+                        with_nutri   = st.checkbox("Plan nutritionnel suivi", value=False)
+
+                        # Modificateurs de trajectoire
+                        traj_boost = 1.0
+                        traj_boost += 0.25 if with_probio else 0
+                        traj_boost += 0.40 if with_detartr else 0
+                        traj_boost += 0.20 if with_nutri else 0
+
+                    with col_results:
+                        scores_actuels  = calculer_score_systemique(s_mutans, p_gingivalis, diversite)
+                        scores_simules  = calculer_score_systemique(sim_mutans, sim_paro, sim_div)
+
+                        # ── Avant / Après côte à côte
+                        st.markdown("#### 📊 Comparaison Avant → Après Traitement")
+
+                        header_c1, header_c2, header_c3 = st.columns([2, 1, 1])
+                        header_c1.markdown("**Pathologie**")
+                        header_c2.markdown("**Actuel**")
+                        header_c3.markdown("**Simulé**")
+                        st.markdown("<hr style='margin:4px 0 10px 0;border-color:#e5e7eb;'>", unsafe_allow_html=True)
+
+                        total_gain = 0
+                        for key, act in scores_actuels.items():
+                            sim = scores_simules[key]
+                            gain = act["score"] - sim["score"]
+                            total_gain += gain
+
+                            col_name, col_act, col_sim = st.columns([2, 1, 1])
+
+                            act_color = "#e11d48" if act["level"]=="high" else "#d97706" if act["level"]=="med" else "#16a34a"
+                            sim_color = "#e11d48" if sim["level"]=="high" else "#d97706" if sim["level"]=="med" else "#16a34a"
+                            arrow = "↓" if gain > 0 else "↑" if gain < 0 else "→"
+                            arrow_color = "#16a34a" if gain > 0 else "#e11d48" if gain < 0 else "#6b7280"
+
+                            col_name.markdown(f"{act['icon']} **{act['label']}**")
+                            col_act.markdown(
+                                f"<span style='color:{act_color};font-weight:700;font-size:1.1rem;'>{act['score']}</span>/100",
+                                unsafe_allow_html=True
+                            )
+                            col_sim.markdown(
+                                f"<span style='color:{sim_color};font-weight:700;font-size:1.1rem;'>{sim['score']}</span>"
+                                f"<span style='color:{arrow_color};font-weight:600;font-size:0.9rem;margin-left:6px;'>"
+                                f"{arrow} {abs(gain):+.0f}</span>",
+                                unsafe_allow_html=True
+                            )
+
+                        st.markdown("<hr style='margin:10px 0;border-color:#e5e7eb;'>", unsafe_allow_html=True)
+
+                        # Score global
+                        avg_act = sum(s["score"] for s in scores_actuels.values()) / len(scores_actuels)
+                        avg_sim = sum(s["score"] for s in scores_simules.values()) / len(scores_simules)
+                        gain_global = avg_act - avg_sim
+                        gain_pct    = round(gain_global / avg_act * 100) if avg_act > 0 else 0
+
+                        g_color = "#16a34a" if gain_global > 0 else "#e11d48" if gain_global < 0 else "#6b7280"
+                        st.markdown(f"""
+                        <div style="background:linear-gradient(135deg,{g_color}15,{g_color}08);
+                             border:1.5px solid {g_color}40;border-radius:12px;padding:16px 20px;
+                             display:flex;justify-content:space-between;align-items:center;">
+                            <div>
+                                <div style="font-size:0.8rem;color:#6b7280;font-weight:600;text-transform:uppercase;">
+                                    Réduction Risque Global Estimée
+                                </div>
+                                <div style="font-family:'DM Serif Display',serif;font-size:2rem;color:{g_color};">
+                                    {"↓" if gain_global>0 else "↑"} {abs(gain_pct)}%
+                                </div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-size:0.85rem;color:#374151;">
+                                    Score moyen : <b>{avg_act:.0f}</b> → <b>{avg_sim:.0f}</b>
+                                </div>
+                                <div style="font-size:0.8rem;color:#9ca3af;margin-top:4px;">
+                                    Sur {mois_projection} mois avec le protocole sélectionné
+                                </div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        st.markdown("<br>", unsafe_allow_html=True)
+
+                        # ── Projection temporelle mois par mois
+                        st.markdown(f"#### 📈 Projection sur {mois_projection} mois")
+                        st.caption(f"Trajectoire d'amélioration estimée avec boost protocole ×{traj_boost:.1f}")
+
+                        import math
+                        projection_data = {}
+                        mois_labels = list(range(0, mois_projection + 1))
+
+                        for key, act in scores_actuels.items():
+                            cible = scores_simules[key]["score"]
+                            depart = act["score"]
+                            serie = []
+                            for m in mois_labels:
+                                if depart == cible:
+                                    serie.append(depart)
+                                else:
+                                    # Courbe logarithmique d'amélioration avec boost protocole
+                                    progression = min(1.0, (m / mois_projection) ** (1 / traj_boost))
+                                    val = depart + (cible - depart) * progression
+                                    serie.append(round(val, 1))
+                            projection_data[act["label"][:18]] = serie
+
+                        df_proj = pd.DataFrame(projection_data, index=[f"M{m}" for m in mois_labels])
+                        st.line_chart(df_proj, height=220)
+
+                        # ── Message clinique final
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        if gain_pct >= 20:
+                            st.success(f"✅ **Impact thérapeutique significatif** — Ce protocole pourrait réduire le risque systémique global de **{gain_pct}%** en {mois_projection} mois.")
+                        elif gain_pct >= 5:
+                            st.info(f"📉 **Impact modéré** — Amélioration estimée de **{gain_pct}%** sur les risques systémiques en {mois_projection} mois.")
+                        elif gain_pct < 0:
+                            st.warning("⚠️ Les valeurs simulées sont supérieures aux valeurs actuelles — ce scénario représente une dégradation.")
+                        else:
+                            st.info("Les valeurs simulées sont proches des valeurs actuelles. Ajustez les sliders pour visualiser l'impact d'un traitement.")
+
+                        if sim_mutans != s_mutans or sim_paro != p_gingivalis or sim_div != diversite:
+                            st.markdown("---")
+                            st.markdown("**Paramètres simulés vs actuels :**")
+                            delta_c1, delta_c2, delta_c3 = st.columns(3)
+                            delta_c1.metric("S. mutans", f"{sim_mutans}%", f"{sim_mutans - s_mutans:+.1f}%", delta_color="inverse")
+                            delta_c2.metric("P. gingivalis", f"{sim_paro}%", f"{sim_paro - p_gingivalis:+.1f}%", delta_color="inverse")
+                            delta_c3.metric("Diversité", f"{sim_div}/100", f"{sim_div - diversite:+.0f}", delta_color="normal")
+
+                with tab4:
                     st.header("📸 Analyse Visuelle de la Cavité Buccale")
                     st.markdown("Uploadez une photo de la bouche du patient pour une analyse IA complémentaire.")
                     if not ANTHROPIC_API_KEY:
@@ -1545,8 +1721,7 @@ elif st.session_state.mode == "praticien":
                                     result = analyser_photo_bouche(img_bytes, mime)
                                 render_photo_analysis(result)
 
-                with tab4:
-                    st.header("Historique")
+                with tab5:
                     if not patient["historique"].empty:
                         st.dataframe(patient["historique"], use_container_width=True, hide_index=True)
                         if len(patient["historique"]) > 1:
