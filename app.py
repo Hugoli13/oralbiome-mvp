@@ -47,7 +47,7 @@ def generer_pdf(patient_nom, r_carieux, r_paro, diversite):
     pdf.set_font("Helvetica", 'I', 10)
     pdf.cell(0, 10, "Ce rapport ne remplace pas une consultation medicale.", ln=True, align="C")
     
-# --- FIN DE LA FONCTION GENERER_PDF ---
+    # --- LES LIGNES CI-DESSOUS SONT MAINTENANT BIEN ALIGNÉES ---
     pdf_output = pdf.output()
     if isinstance(pdf_output, str):
         return pdf_output.encode('latin-1')
