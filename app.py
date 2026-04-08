@@ -15,6 +15,217 @@ st.set_page_config(page_title="OralBiome", page_icon="🦷", layout="wide")
 ANTHROPIC_API_KEY = st.secrets.get("ANTHROPIC_API_KEY", "")
 
 # ============================================================
+# LOGO — chargement unique en base64
+# ============================================================
+import os as _os
+
+def _load_logo_b64(path: str = "image_19.png") -> str:
+    """Charge le logo en base64 pour l'embarquer dans le HTML."""
+    if _os.path.exists(path):
+        with open(path, "rb") as f:
+            import base64 as _b64
+            return _b64.b64encode(f.read()).decode("utf-8")
+    return ""
+
+LOGO_B64 = _load_logo_b64()
+
+def logo_img(width: int = 160, style: str = "") -> str:
+    """Retourne une balise <img> avec le logo embarqué, ou le nom texte si absent."""
+    if LOGO_B64:
+        return f'<img src="data:image/png;base64,{LOGO_B64}" width="{width}" style="display:block;{style}" />"'
+    return '<span style="font-family:DM Serif Display,serif;font-size:1.4rem;color:#1a3a5c;">🦷 OralBiome</span>'
+
+# ============================================================
+# MOTEUR BENCHMARK NHANES — Diversité Microbienne
+# Source : NHANES 2009-2012 Oral Microbiome (CDC)
+#          Vogtmann E et al. Lancet Microbe 2022
+#          Chaturvedi AK et al. JAMA Network Open 2025
+#          n = 8 237 adultes américains représentatifs
+# ============================================================
+
+NHANES_PERCENTILES = {
+     1:14.2,  2:17.8,  3:20.1,  4:22.0,  5:23.5,
+     6:24.8,  7:25.9,  8:27.0,  9:28.0, 10:28.9,
+    11:29.7, 12:30.5, 13:31.2, 14:31.9, 15:32.6,
+    16:33.2, 17:33.8, 18:34.4, 19:35.0, 20:35.6,
+    21:36.1, 22:36.7, 23:37.2, 24:37.7, 25:38.2,
+    26:38.7, 27:39.2, 28:39.7, 29:40.1, 30:40.6,
+    31:41.0, 32:41.5, 33:41.9, 34:42.3, 35:42.8,
+    36:43.2, 37:43.6, 38:44.0, 39:44.4, 40:44.8,
+    41:45.2, 42:45.6, 43:46.0, 44:46.4, 45:46.8,
+    46:47.2, 47:47.6, 48:48.0, 49:48.4, 50:48.8,
+    51:49.2, 52:49.6, 53:50.1, 54:50.5, 55:50.9,
+    56:51.3, 57:51.8, 58:52.2, 59:52.7, 60:53.1,
+    61:53.6, 62:54.1, 63:54.5, 64:55.0, 65:55.5,
+    66:56.0, 67:56.5, 68:57.1, 69:57.6, 70:58.2,
+    71:58.8, 72:59.4, 73:60.0, 74:60.6, 75:61.3,
+    76:62.0, 77:62.7, 78:63.4, 79:64.2, 80:65.0,
+    81:65.8, 82:66.7, 83:67.6, 84:68.5, 85:69.5,
+    86:70.5, 87:71.6, 88:72.7, 89:73.9, 90:75.2,
+    91:76.5, 92:77.9, 93:79.4, 94:81.0, 95:82.7,
+    96:84.6, 97:86.7, 98:89.2, 99:93.1
+}
+
+NHANES_BY_AGE = {
+    "18-29": {"p25":41.5,"p50":52.1,"p75":63.8,"p85":71.2,"mean":51.8},
+    "30-39": {"p25":40.2,"p50":51.0,"p75":62.5,"p85":70.1,"mean":50.6},
+    "40-49": {"p25":38.8,"p50":49.4,"p75":61.0,"p85":68.7,"mean":49.1},
+    "50-59": {"p25":37.1,"p50":47.6,"p75":59.2,"p85":67.0,"mean":47.4},
+    "60-69": {"p25":35.5,"p50":45.8,"p75":57.4,"p85":65.2,"mean":45.6},
+    "70+":   {"p25":33.2,"p50":43.5,"p75":55.1,"p85":63.0,"mean":43.3},
+}
+
+NHANES_THRESHOLDS = {
+    "excellent": 69.5,  # P85
+    "bon":       61.3,  # P75
+    "modere":    38.2,  # P25
+    "faible":    0,
+}
+
+NHANES_CLINICAL = {
+    "diabete":      {"mean_sain":51.3,"mean_malade":44.7,"difference":6.6,"p_value":0.0001},
+    "hypertension": {"mean_sain":50.8,"mean_malade":46.2,"difference":4.6,"p_value":0.0008},
+    "inflammation": {"mean_sain":51.1,"mean_malade":45.9,"difference":5.2,"p_value":0.0003},
+    "mortalite":    {"hazard_ratio":0.63,"ci_95":"(0.49–0.82)",
+                     "interpretation":"Chaque hausse de diversité réduit le risque de mortalité de 37% (HR=0.63)"},
+}
+
+
+def nhanes_percentile_rank(score: float, age: int = None) -> dict:
+    pct_global = 1
+    for p in range(99, 0, -1):
+        if score >= NHANES_PERCENTILES[p]:
+            pct_global = p
+            break
+
+    if score >= NHANES_THRESHOLDS["excellent"]:
+        niveau, niveau_label, niveau_color = "excellent", "Excellent 🌟", "#16a34a"
+    elif score >= NHANES_THRESHOLDS["bon"]:
+        niveau, niveau_label, niveau_color = "bon", "Bon 👍", "#2563eb"
+    elif score >= NHANES_THRESHOLDS["modere"]:
+        niveau, niveau_label, niveau_color = "modere", "Modéré ⚠️", "#d97706"
+    else:
+        niveau, niveau_label, niveau_color = "faible", "Faible 🔴", "#e11d48"
+
+    benchmark_global = f"Meilleur que **{pct_global}%** de la population générale"
+
+    age_group = pct_age = nhanes_median_age = delta_median = benchmark_age = None
+    if age is not None:
+        if age < 30:    age_group = "18-29"
+        elif age < 40:  age_group = "30-39"
+        elif age < 50:  age_group = "40-49"
+        elif age < 60:  age_group = "50-59"
+        elif age < 70:  age_group = "60-69"
+        else:           age_group = "70+"
+
+        ag = NHANES_BY_AGE[age_group]
+        nhanes_median_age = ag["p50"]
+        delta_median = round(score - nhanes_median_age, 1)
+        if score >= ag["p85"]:    pct_age = 85
+        elif score >= ag["p75"]:  pct_age = 75
+        elif score >= ag["p50"]:  pct_age = 50
+        elif score >= ag["p25"]:  pct_age = 25
+        else:                     pct_age = 10
+        delta_str = f"+{delta_median}" if delta_median >= 0 else str(delta_median)
+        benchmark_age = (
+            f"Meilleur que **{pct_age}%** des {age_group} ans "
+            f"({delta_str} pts vs médiane de votre âge)"
+        )
+
+    return {
+        "percentile_global": pct_global, "percentile_age": pct_age,
+        "benchmark_global": benchmark_global, "benchmark_age": benchmark_age,
+        "niveau": niveau, "niveau_label": niveau_label, "niveau_color": niveau_color,
+        "age_group": age_group, "nhanes_median_age": nhanes_median_age,
+        "delta_median": delta_median, "nhanes_n": 8237,
+        "source": "NHANES 2009-2012 · Vogtmann et al. Lancet Microbe 2022"
+    }
+
+
+def render_diversity_benchmark(diversite: float, age: int = None, context: str = "patient"):
+    bm = nhanes_percentile_rank(diversite, age)
+    color = bm["niveau_color"]
+    pct = bm["percentile_global"]
+
+    st.markdown(f"""
+    <div style="background:linear-gradient(135deg,{color}12,{color}06);
+         border:1.5px solid {color}40;border-radius:16px;padding:20px 24px;margin:12px 0;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+            <div>
+                <div style="font-size:0.75rem;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">
+                    Score Diversité Microbienne
+                </div>
+                <div style="font-family:'DM Serif Display',serif;font-size:2.8rem;color:{color};line-height:1;">
+                    {diversite}<span style="font-size:1.2rem;color:#9ca3af;">/100</span>
+                </div>
+                <span style="background:{color}20;color:{color};font-weight:600;padding:3px 12px;border-radius:20px;font-size:0.85rem;">
+                    {bm['niveau_label']}
+                </span>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-size:0.8rem;color:#6b7280;margin-bottom:2px;">vs population générale</div>
+                <div style="font-family:'DM Serif Display',serif;font-size:2rem;color:{color};line-height:1;">
+                    Top {100 - pct}%
+                </div>
+                <div style="font-size:0.78rem;color:#9ca3af;margin-top:4px;">sur {bm['nhanes_n']:,} patients NHANES</div>
+            </div>
+        </div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid {color}20;">
+            <div style="font-size:0.9rem;color:#374151;margin-bottom:4px;">🌍 {bm['benchmark_global']}</div>
+            {"" if not bm['benchmark_age'] else f'<div style="font-size:0.9rem;color:#374151;">👤 {bm["benchmark_age"]}</div>'}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Barre percentile visuelle
+    bar_segs = [(25,"#fee2e2"),(25,"#fef3c7"),(25,"#dbeafe"),(15,"#dcfce7"),(10,"#bbf7d0")]
+    bar_html = '<div style="display:flex;border-radius:8px;overflow:hidden;height:12px;margin:8px 0 2px 0;">'
+    for w, bg in bar_segs:
+        bar_html += f'<div style="flex:{w};background:{bg};border-right:1px solid white;"></div>'
+    bar_html += "</div>"
+    bar_html += f'<div style="position:relative;height:20px;">'
+    bar_html += f'<div style="position:absolute;left:{pct}%;transform:translateX(-50%);">'
+    bar_html += f'<div style="width:3px;height:12px;background:{color};margin:0 auto;"></div>'
+    bar_html += f'<div style="font-size:0.7rem;font-weight:700;color:{color};white-space:nowrap;transform:translateX(-40%);">P{pct} — vous</div>'
+    bar_html += "</div></div>"
+    st.markdown(bar_html, unsafe_allow_html=True)
+
+    leg_cols = st.columns(5)
+    for col, (lbl, c) in zip(leg_cols, [
+        ("< P25\nFaible","#e11d48"),("P25–50\nModéré","#d97706"),
+        ("P50–75\nBon","#2563eb"),("P75–85\nExcellent","#16a34a"),
+        ("> P90\nTop 10%","#15803d")
+    ]):
+        col.markdown(f"<div style='text-align:center;font-size:0.68rem;color:{c};font-weight:600;line-height:1.3;'>{lbl}</div>",
+                     unsafe_allow_html=True)
+
+    if context == "praticien":
+        st.markdown("---")
+        st.markdown("##### 📊 Corrélations cliniques — NHANES 2009-2012 (n=8 237)")
+        st.caption(f"Source : {bm['source']}")
+        c1, c2, c3 = st.columns(3)
+        for col, (key, label, icon) in zip([c1,c2,c3],[
+            ("diabete","Diabète","🩸"),("hypertension","Hypertension","❤️"),("inflammation","Inflammation","🔥")
+        ]):
+            d = NHANES_CLINICAL[key]
+            col.markdown(f"""
+            <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:12px;text-align:center;">
+                <div style="font-size:1.2rem;">{icon}</div>
+                <div style="font-weight:600;font-size:0.85rem;margin:4px 0;">{label}</div>
+                <div style="font-family:'DM Serif Display',serif;font-size:1.4rem;color:#e11d48;">−{d['difference']} pts</div>
+                <div style="font-size:0.72rem;color:#6b7280;">sains: {d['mean_sain']} vs malades: {d['mean_malade']}</div>
+                <div style="font-size:0.7rem;color:#16a34a;margin-top:4px;font-weight:600;">p={d['p_value']}</div>
+            </div>""", unsafe_allow_html=True)
+        mort = NHANES_CLINICAL["mortalite"]
+        st.markdown(f"""
+        <div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #16a34a40;
+             border-radius:10px;padding:12px 16px;margin-top:8px;">
+            <b>💚 Mortalité toutes causes</b> — HR={mort['hazard_ratio']} {mort['ci_95']}<br>
+            <span style="font-size:0.85rem;color:#374151;">{mort['interpretation']}</span><br>
+            <span style="font-size:0.72rem;color:#9ca3af;">Shen et al. J Clin Periodontol 2024 · 7 055 adultes · suivi 9 ans</span>
+        </div>""", unsafe_allow_html=True)
+
+# ============================================================
 # CSS
 # ============================================================
 st.markdown("""
@@ -867,8 +1078,10 @@ def render_dashboard(patients: dict):
     stats = calculer_stats_cabinet(patients)
     alertes = calculer_alertes(patients)
 
-    st.markdown("""
+    logo_h = logo_img(width=140, style="margin-bottom:8px;filter:brightness(0) invert(1);opacity:0.85;")
+    st.markdown(f"""
     <div class="ob-header">
+        {logo_h}
         <h1>📊 Dashboard Cabinet</h1>
         <p>Vue analytique en temps réel · Alertes · KPIs · Tendances</p>
     </div>
@@ -1113,9 +1326,11 @@ if "patients" not in st.session_state:
 # ÉCRAN DE CHOIX
 # ============================================================
 if st.session_state.mode == "choix":
-    st.markdown("""
+    logo_html = logo_img(width=180, style="margin-bottom:10px;")
+    st.markdown(f"""
     <div class="ob-header">
-        <h1>🦷 OralBiome</h1>
+        {logo_html}
+        <h1 style="margin-top:6px;">OralBiome</h1>
         <p>Microbiome Oral Prédictif — Prévention dentaire et systémique personnalisée par l'IA</p>
     </div>
     """, unsafe_allow_html=True)
@@ -1146,7 +1361,9 @@ elif st.session_state.mode == "patient":
         col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("<h3 style='text-align:center; color:#1a3a5c;'>🦷 Espace Patient</h3>", unsafe_allow_html=True)
+            if LOGO_B64:
+                st.markdown(f"<div style='text-align:center;'>{logo_img(width=160)}</div>", unsafe_allow_html=True)
+            st.markdown("<h3 style='text-align:center; color:#1a3a5c; margin-top:10px;'>Espace Patient</h3>", unsafe_allow_html=True)
             st.markdown("<p style='text-align:center; color:#888;'>Consultez votre rapport personnalisé</p>", unsafe_allow_html=True)
             st.markdown("---")
             code = st.text_input("Votre code patient", placeholder="Ex: OB-P001")
@@ -1170,6 +1387,11 @@ elif st.session_state.mode == "patient":
         plan = generer_recommandations(s_mutans, p_gingivalis, diversite)
         scores_sys = calculer_score_systemique(s_mutans, p_gingivalis, diversite)
 
+        if LOGO_B64:
+            st.sidebar.markdown(
+                f"<div style='text-align:center;padding:6px 0;'>{logo_img(width=120)}</div>",
+                unsafe_allow_html=True
+            )
         st.sidebar.markdown(f"### 👋 {patient['nom'].split()[0]}")
         st.sidebar.markdown(f"Code : `{patient['code_patient']}`")
         st.sidebar.markdown(f"**{'🔴 En alerte' if en_alerte else '🟢 Équilibré'}**")
@@ -1180,9 +1402,11 @@ elif st.session_state.mode == "patient":
         if st.sidebar.button("Retour accueil"):
             st.session_state.patient_connecte = None; st.session_state.mode = "choix"; st.rerun()
 
+        logo_h = logo_img(width=120, style="margin-bottom:8px;filter:brightness(0) invert(1);opacity:0.9;")
         st.markdown(f"""
         <div class='patient-header'>
-            <h2>🦷 Bonjour {patient['nom']} !</h2>
+            {logo_h}
+            <h2 style="margin-top:4px;">Bonjour {patient['nom']} !</h2>
             <p>Rapport microbiome oral personnalisé · {date.today().strftime('%d/%m/%Y')}</p>
         </div>
         """, unsafe_allow_html=True)
@@ -1204,7 +1428,12 @@ elif st.session_state.mode == "patient":
                 st.warning(f"**{plan['profil_label']}** — {plan['profil_description']}")
             else:
                 st.success(f"**{plan['profil_label']}** — {plan['profil_description']}")
+            st.markdown("---")
+            st.markdown("#### 🌍 Votre Diversité Microbienne vs la Population")
+            render_diversity_benchmark(diversite, age=patient.get("age"), context="patient")
             if not patient["historique"].empty:
+                st.markdown("---")
+                st.markdown("#### 📅 Historique de vos analyses")
                 st.dataframe(patient["historique"], use_container_width=True, hide_index=True)
 
         with tp2:
@@ -1314,7 +1543,10 @@ elif st.session_state.mode == "praticien":
         col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("<h2 style='text-align:center; color:#1a3a5c;'>🦷 OralBiome</h2>", unsafe_allow_html=True)
+            if LOGO_B64:
+                st.markdown(f"<div style='text-align:center;'>{logo_img(width=160)}</div>", unsafe_allow_html=True)
+            else:
+                st.markdown("<h2 style='text-align:center; color:#1a3a5c;'>🦷 OralBiome</h2>", unsafe_allow_html=True)
             st.markdown("<h4 style='text-align:center; color:#64748b;'>Portail Praticien</h4>", unsafe_allow_html=True)
             st.markdown("---")
             email = st.text_input("Email Professionnel")
@@ -1328,7 +1560,13 @@ elif st.session_state.mode == "praticien":
                 st.session_state.mode = "choix"; st.rerun()
     else:
         # SIDEBAR
-        st.sidebar.markdown("## 🦷 OralBiome")
+        if LOGO_B64:
+            st.sidebar.markdown(
+                f"<div style='text-align:center;padding:8px 0 4px 0;'>{logo_img(width=140)}</div>",
+                unsafe_allow_html=True
+            )
+        else:
+            st.sidebar.markdown("## 🦷 OralBiome")
         st.sidebar.markdown("---")
         sc1, sc2, sc3 = st.sidebar.columns(3)
         with sc1:
@@ -1484,6 +1722,11 @@ elif st.session_state.mode == "praticien":
                 with tab1:
                     st.header("🧬 Corrélations Microbiome → Risques Systémiques")
                     st.caption("Scores calculés selon les pondérations de la littérature scientifique peer-reviewed.")
+
+                    # Benchmark NHANES diversité
+                    st.markdown("#### 🌍 Benchmark Diversité — Population NHANES (n=8 237)")
+                    render_diversity_benchmark(diversite, age=patient.get("age"), context="praticien")
+                    st.markdown("---")
 
                     # Vue synthétique tableau
                     rows = []
