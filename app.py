@@ -2,38 +2,74 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from PIL import Image
+from fpdf import FPDF
+
+# --- FONCTION DE GÉNÉRATION DU PDF ---
+def generer_pdf(patient_nom, r_carieux, r_paro, diversite):
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # Titre
+    pdf.set_font("Helvetica", 'B', 20)
+    pdf.cell(0, 15, "OralBiome - Rapport Patient", ln=True, align="C")
+    pdf.ln(5)
+    
+    # Informations Patient
+    pdf.set_font("Helvetica", '', 12)
+    pdf.cell(0, 10, f"Patient : {patient_nom}", ln=True)
+    pdf.cell(0, 10, f"Date de l'analyse : {date.today().strftime('%d/%m/%Y')}", ln=True)
+    pdf.ln(10)
+    
+    # Résultats
+    pdf.set_font("Helvetica", 'B', 14)
+    pdf.cell(0, 10, "1. Vos Resultats Cliniques", ln=True)
+    pdf.set_font("Helvetica", '', 12)
+    pdf.cell(0, 10, f"- Risque Carieux : {r_carieux}", ln=True)
+    pdf.cell(0, 10, f"- Risque Parodontal : {r_paro}", ln=True)
+    pdf.cell(0, 10, f"- Score de Diversite : {diversite}/100", ln=True)
+    pdf.ln(10)
+    
+    # Recommandations
+    pdf.set_font("Helvetica", 'B', 14)
+    pdf.cell(0, 10, "2. Plan d'Action & Recommandations", ln=True)
+    pdf.set_font("Helvetica", '', 12)
+    
+    if r_carieux == "Élevé":
+        pdf.multi_cell(0, 10, "- Alerte Carieuse : Reduire les sucres collants. Utiliser un dentifrice remineralisant.")
+    if r_paro == "Élevé":
+        pdf.multi_cell(0, 10, "- Alerte Parodontale : Utilisation de brossettes interdentaires et bain de bouche cible.")
+    if diversite < 50:
+        pdf.multi_cell(0, 10, "- Dysbiose Orale : Cure de probiotiques oraux conseillee pendant 30 jours.")
+    if r_carieux == "Faible" and r_paro == "Faible" and diversite >= 50:
+        pdf.multi_cell(0, 10, "- Profil Equilibre : Votre microbiome est protecteur. Maintenez votre routine !")
+        
+    pdf.ln(15)
+    pdf.set_font("Helvetica", 'I', 10)
+    pdf.cell(0, 10, "Ce rapport ne remplace pas une consultation medicale.", ln=True, align="C")
+    
+    return pdf.output()
 
 # --- CONFIGURATION ---
-st.set_page_config(page_title="OralBiome - Connexion", page_icon="🦷", layout="wide")
+st.set_page_config(page_title="OralBiome - Praticien", page_icon="🦷", layout="wide")
 
 # --- INITIALISATION DE LA MÉMOIRE ---
-# 1. Gestion de la connexion
 if 'utilisateur_connecte' not in st.session_state:
     st.session_state.utilisateur_connecte = False
 
-# 2. Base de données patients (chargée uniquement si nécessaire)
 if 'dossiers_patients' not in st.session_state:
     st.session_state.dossiers_patients = {}
     df_exemple = pd.DataFrame(columns=["Date", "Acte / Test", "S. mutans (%)", "P. gingiv. (%)", "Diversité (%)", "Status"])
     df_exemple.loc[0] = ["12/10/2023", "Examen Initial", 4.2, 0.8, 45, "🔴 Alerte"]
-    df_exemple.loc[1] = ["15/11/2023", "Détartrage", 3.1, 0.4, 52, "🔴 Alerte"]
-    df_exemple.loc[2] = ["20/01/2024", "Soin Carie", 2.8, 0.2, 68, "🟢 Stable"]
     st.session_state.dossiers_patients["Patient 001 - Jean Dupont"] = df_exemple
-
 
 # ==========================================
 # ÉCRAN DE CONNEXION (SI NON CONNECTÉ)
 # ==========================================
 if not st.session_state.utilisateur_connecte:
-    
-    # Création d'une mise en page centrée pour faire un beau formulaire
     col_vide1, col_centre, col_vide2 = st.columns([1, 1, 1])
-    
     with col_centre:
-        st.write("") # Espace en haut
+        st.write("") 
         st.write("")
-        
-        # Affichage du logo centré
         try:
             logo_image = Image.open("image_19.png")
             st.image(logo_image, use_container_width=True) 
@@ -43,28 +79,20 @@ if not st.session_state.utilisateur_connecte:
         st.markdown("<h3 style='text-align: center;'>Portail Praticien</h3>", unsafe_allow_html=True)
         st.markdown("---")
         
-        # Le formulaire de connexion
         email_saisi = st.text_input("Adresse Email Professionnelle")
-        mdp_saisi = st.text_input("Mot de passe", type="password") # Cache les caractères
+        mdp_saisi = st.text_input("Mot de passe", type="password")
         
-        bouton_connexion = st.button("Se connecter à mon espace", use_container_width=True)
-        
-        # Vérification des identifiants (Les "clés" du MVP)
-        if bouton_connexion:
+        if st.button("Se connecter à mon espace", use_container_width=True):
             if email_saisi == "contact@oralbiome.com" and mdp_saisi == "mvp2024":
-                # Succès : On change le statut et on relance la page
                 st.session_state.utilisateur_connecte = True
                 st.rerun()
             else:
-                # Échec
-                st.error("Identifiants incorrects. Veuillez réessayer.")
-
+                st.error("Identifiants incorrects.")
 
 # ==========================================
 # APPLICATION PRINCIPALE (SI CONNECTÉ)
 # ==========================================
 else:
-    # --- BARRE LATÉRALE ---
     try:
         logo_image = Image.open("image_19.png")
         st.sidebar.image(logo_image, use_container_width=True) 
@@ -73,24 +101,21 @@ else:
 
     st.sidebar.markdown("---")
     
-    # BOUTON DE DÉCONNEXION
     if st.sidebar.button("🚪 Se déconnecter", use_container_width=True):
         st.session_state.utilisateur_connecte = False
         st.rerun()
         
     st.sidebar.markdown("---")
-    
     st.sidebar.header("Recherche Patient")
     patient_id = st.sidebar.text_input("Nom ou ID du patient", "Patient 001 - Jean Dupont")
 
-    # Si le patient n'existe pas encore, on lui crée un dossier vide
     if patient_id not in st.session_state.dossiers_patients:
         st.session_state.dossiers_patients[patient_id] = pd.DataFrame(
             columns=["Date", "Acte / Test", "S. mutans (%)", "P. gingiv. (%)", "Diversité (%)", "Status"]
         )
 
     st.sidebar.markdown("---")
-    st.sidebar.header("🔬 Analyse Rapide (Test du jour)")
+    st.sidebar.header("🔬 Analyse Rapide")
     s_mutans = st.sidebar.slider("S. mutans (%)", 0.0, 10.0, 2.5, step=0.1)
     p_gingivalis = st.sidebar.slider("P. gingivalis (%)", 0.0, 5.0, 0.3, step=0.1)
     diversite = st.sidebar.slider("Diversité Globale", 0, 100, 75)
@@ -98,36 +123,44 @@ else:
     risque_carieux = "Élevé" if s_mutans > 3.0 else "Faible"
     risque_paro = "Élevé" if p_gingivalis > 0.5 else "Faible"
 
-    # --- TABLEAU DE BORD PRINCIPAL ---
     st.title(f"Dossier Médical : {patient_id}")
-
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Risque Carieux Actuel", risque_carieux, "Alerte" if risque_carieux == "Élevé" else "Normal", delta_color="inverse")
+        st.metric("Risque Carieux", risque_carieux, "Alerte" if risque_carieux == "Élevé" else "Normal", delta_color="inverse")
     with col2:
-        st.metric("Risque Parodontal Actuel", risque_paro, "Alerte" if risque_paro == "Élevé" else "Normal", delta_color="inverse")
+        st.metric("Risque Parodontal", risque_paro, "Alerte" if risque_paro == "Élevé" else "Normal", delta_color="inverse")
     with col3:
-        st.metric("Score de Diversité Actuel", f"{diversite}/100")
+        st.metric("Score de Diversité", f"{diversite}/100")
 
     st.markdown("---")
 
-    # --- RECOMMANDATIONS ---
+    # --- RECOMMANDATIONS & BOUTON PDF ---
     st.header("📋 Plan d'Action & Recommandations")
 
     if risque_carieux == "Élevé":
-        st.warning("**Alerte Carieuse :** Le taux de bactéries acidogènes est trop élevé. \n* **Nutrition :** Réduire drastiquement les glucides fermentescibles et collants. \n* **Hygiène :** Prescrire un protocole anti-acide et un dentifrice reminéralisant spécifique.")
+        st.warning("**Alerte Carieuse :** Le taux de bactéries acidogènes est trop élevé.")
     if risque_paro == "Élevé":
-        st.error("**Alerte Parodontale :** Présence anormale de pathogènes du complexe rouge. \n* **Clinique :** Évaluer la nécessité d'un surfaçage radiculaire. \n* **Hygiène :** Utilisation stricte de brossettes interdentaires et d'un bain de bouche ciblé.")
+        st.error("**Alerte Parodontale :** Présence anormale de pathogènes du complexe rouge.")
     if diversite < 50:
-        st.info("**Dysbiose Orale :** La flore bactérienne est trop pauvre pour se défendre naturellement. \n* **Probiotiques :** Suggérer une cure de probiotiques oraux pendant 30 jours.")
+        st.info("**Dysbiose Orale :** La flore bactérienne est trop pauvre pour se défendre naturellement.")
     if risque_carieux == "Faible" and risque_paro == "Faible" and diversite >= 50:
-        st.success("✅ **Profil Équilibré :** Le microbiome du patient est protecteur. Maintenir la routine actuelle.")
+        st.success("✅ **Profil Équilibré :** Le microbiome du patient est protecteur.")
+
+    # LE BOUTON MAGIQUE
+    st.markdown("<br>", unsafe_allow_html=True)
+    pdf_bytes = generer_pdf(patient_id, risque_carieux, risque_paro, diversite)
+    
+    st.download_button(
+        label="📄 Télécharger le Rapport Patient (PDF)",
+        data=pdf_bytes,
+        file_name=f"OralBiome_Rapport_{patient_id}.pdf",
+        mime="application/pdf",
+        type="primary"
+    )
 
     st.markdown("---")
 
-    # --- DOSSIER PATIENT LONGITUDINAL ---
     st.header("📂 Historique du patient")
-
     st.dataframe(st.session_state.dossiers_patients[patient_id], use_container_width=True, hide_index=True)
 
     st.markdown("#### Ajouter une intervention au dossier")
@@ -146,7 +179,6 @@ else:
 
         if bouton_ajout:
             nouveau_statut = "🔴 Alerte" if nouv_s > 3.0 or nouv_p > 0.5 or nouv_div < 50 else "🟢 Stable"
-            
             nouvelle_ligne = pd.DataFrame({
                 "Date": [nouvelle_date.strftime("%d/%m/%Y")], 
                 "Acte / Test": [nouvel_acte], 
@@ -155,7 +187,6 @@ else:
                 "Diversité (%)": [nouv_div], 
                 "Status": [nouveau_statut]
             })
-            
             st.session_state.dossiers_patients[patient_id] = pd.concat(
                 [st.session_state.dossiers_patients[patient_id], nouvelle_ligne], 
                 ignore_index=True
