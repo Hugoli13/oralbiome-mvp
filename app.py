@@ -29,7 +29,7 @@ def _load_logo_b64(path: str = "image_19.png") -> str:
 
 LOGO_B64 = _load_logo_b64()
 
-def logo_img(width: int = 160, style: str = "") -> str:
+def logo_img(width: int = 400, style: str = "") -> str:
     """Retourne une balise <img> avec le logo embarqué, ou le nom texte si absent."""
     if LOGO_B64:
         return f'<img src="data:image/png;base64,{LOGO_B64}" width="{width}" style="display:block;{style}" />"'
@@ -1703,7 +1703,7 @@ elif st.session_state.mode == "praticien":
         # SIDEBAR
         if LOGO_B64:
             st.sidebar.markdown(
-                f"<div style='text-align:center;padding:8px 0 4px 0;'>{logo_img(width=140)}</div>",
+                f"<div style='text-align:center;padding:8px 0 4px 0;'>{logo_img(width=400)}</div>",
                 unsafe_allow_html=True
             )
         else:
