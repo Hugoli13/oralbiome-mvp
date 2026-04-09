@@ -1503,7 +1503,7 @@ elif st.session_state.mode == "patient":
         with col2:
             st.markdown("<br>", unsafe_allow_html=True)
             if LOGO_B64:
-                st.markdown(f"<div style='text-align:center;'>{logo_img(width=160)}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align:center;'>{logo_img(width=400)}</div>", unsafe_allow_html=True)
             st.markdown("<h3 style='text-align:center; color:#1a3a5c; margin-top:10px;'>Espace Patient</h3>", unsafe_allow_html=True)
             st.markdown("<p style='text-align:center; color:#888;'>Consultez votre rapport personnalisé</p>", unsafe_allow_html=True)
             st.markdown("---")
