@@ -1323,38 +1323,134 @@ if "patients" not in st.session_state:
 
 
 # ============================================================
-# ÉCRAN DE CHOIX
+# ÉCRAN DE CHOIX (VERSION AMÉLIORÉE)
 # ============================================================
 if st.session_state.mode == "choix":
-    # On ajoute un fond blanc propre avec des bords arrondis au logo
-    logo_html = logo_img(width=120, style="background: white; padding: 12px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);")
-    
-    # On utilise 'display: flex' pour aligner le logo et le texte horizontalement
+
+    # ====== STYLE GLOBAL ======
+    st.markdown("""
+    <style>
+    .ob-header {
+        background: linear-gradient(135deg, #0f2a44, #1f4e79);
+        padding: 28px;
+        border-radius: 18px;
+        color: white;
+        margin-bottom: 30px;
+    }
+
+    .card {
+        background: white;
+        padding: 22px;
+        border-radius: 16px;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+        transition: all 0.25s ease;
+        height: 100%;
+    }
+
+    .card:hover {
+        transform: translateY(-6px);
+        box-shadow: 0 12px 28px rgba(0,0,0,0.15);
+    }
+
+    .card-title {
+        font-size: 20px;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+
+    .card-text {
+        font-size: 14px;
+        color: #555;
+        margin-bottom: 18px;
+    }
+
+    .logo-box {
+        background: white;
+        padding: 12px;
+        border-radius: 14px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .footer {
+        text-align: center;
+        color: #777;
+        font-size: 13px;
+        margin-top: 40px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ====== HEADER ======
+    logo_html = logo_img(width=110)
+
     st.markdown(f"""
-    <div class="ob-header" style="display: flex; align-items: center; gap: 24px;">
-        <div>{logo_html}</div>
+    <div class="ob-header" style="display:flex; align-items:center; gap:20px;">
+        <div class="logo-box">{logo_html}</div>
         <div>
-            <h1 style="margin: 0;">OralBiome</h1>
-            <p style="margin: 4px 0 0 0; color: rgba(255,255,255,0.8);">Microbiome Oral Prédictif — Prévention dentaire et systémique personnalisée par l'IA</p>
+            <h1 style="margin:0;">OralBiome</h1>
+            <p style="margin:4px 0 0 0; opacity:0.85;">
+                Microbiome Oral Prédictif — Prévention personnalisée par l’IA
+            </p>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns([1, 1, 1])
+    # ====== CARTES ======
+    col1, col2, col3 = st.columns(3)
+
+    # --- PRATICIEN ---
     with col1:
-        st.markdown("#### 🩺 Praticien")
-        st.markdown("Tableau de bord complet, gestion des dossiers, analyses systémiques et rapports PDF.")
+        st.markdown("""
+        <div class="card">
+            <div class="card-title">🩺 Praticien</div>
+            <div class="card-text">
+                Tableau de bord complet, gestion des patients,
+                analyses avancées et rapports PDF automatisés.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
         if st.button("Connexion Praticien", use_container_width=True, type="primary"):
-            st.session_state.mode = "praticien"; st.rerun()
+            st.session_state.mode = "praticien"
+            st.rerun()
+
+    # --- PATIENT ---
     with col2:
-        st.markdown("#### 🧑 Patient")
-        st.markdown("Votre rapport personnalisé, plan nutritionnel, risques systémiques et historique.")
+        st.markdown("""
+        <div class="card">
+            <div class="card-title">🧑 Patient</div>
+            <div class="card-text">
+                Rapport personnalisé, recommandations nutritionnelles,
+                suivi des risques et historique de santé.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
         if st.button("Accès Patient", use_container_width=True):
-            st.session_state.mode = "patient"; st.rerun()
+            st.session_state.mode = "patient"
+            st.rerun()
+
+    # --- À PROPOS ---
     with col3:
-        st.markdown("#### ℹ️ À propos")
-        st.markdown("OralBiome corrèle votre microbiote oral avec vos risques cardiovasculaires, diabète, Alzheimer et plus.")
-        st.markdown("**contact@oralbiome.com**")
+        st.markdown("""
+        <div class="card">
+            <div class="card-title">ℹ️ À propos</div>
+            <div class="card-text">
+                Corrélation entre microbiote oral et risques systémiques :
+                cardiovasculaire, diabète, Alzheimer…
+            </div>
+            <div style="font-size:13px; color:#1f4e79;">
+                contact@oralbiome.com
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ====== FOOTER ======
+    st.markdown("""
+    <div class="footer">
+        © 2026 OralBiome — Prévention santé augmentée par IA
+    </div>
+    """, unsafe_allow_html=True)
 
 
 # ============================================================
