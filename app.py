@@ -1323,94 +1323,129 @@ if "patients" not in st.session_state:
 
 
 # ============================================================
-# ÉCRAN DE CHOIX (VERSION AMÉLIORÉE)
+# ÉCRAN DE CHOIX — VERSION PREMIUM
 # ============================================================
 if st.session_state.mode == "choix":
 
-    # ====== STYLE GLOBAL ======
     st.markdown("""
     <style>
+    /* ===== GLOBAL ===== */
+    .main {
+        background: #f6f8fb;
+    }
+
+    /* ===== HEADER ===== */
     .ob-header {
-        background: linear-gradient(135deg, #0f2a44, #1f4e79);
-        padding: 28px;
-        border-radius: 18px;
+        background: linear-gradient(135deg, rgba(15,42,68,0.95), rgba(31,78,121,0.95));
+        padding: 32px 36px;
+        border-radius: 20px;
         color: white;
-        margin-bottom: 30px;
-    }
-
-    .card {
-        background: white;
-        padding: 22px;
-        border-radius: 16px;
-        box-shadow: 0 6px 18px rgba(0,0,0,0.08);
-        transition: all 0.25s ease;
-        height: 100%;
-    }
-
-    .card:hover {
-        transform: translateY(-6px);
-        box-shadow: 0 12px 28px rgba(0,0,0,0.15);
-    }
-
-    .card-title {
-        font-size: 20px;
-        font-weight: 600;
-        margin-bottom: 8px;
-    }
-
-    .card-text {
-        font-size: 14px;
-        color: #555;
-        margin-bottom: 18px;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        backdrop-filter: blur(10px);
     }
 
     .logo-box {
         background: white;
-        padding: 12px;
-        border-radius: 14px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        padding: 10px;
+        border-radius: 12px;
     }
 
+    .subtitle {
+        opacity: 0.8;
+        font-size: 15px;
+        margin-top: 4px;
+    }
+
+    /* ===== CARDS ===== */
+    .card {
+        background: white;
+        padding: 26px;
+        border-radius: 18px;
+        border: 1px solid #e6eaf0;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        transition: all 0.2s ease;
+    }
+
+    .card:hover {
+        border-color: #c9d3df;
+        transform: translateY(-3px);
+    }
+
+    .card-title {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 10px;
+    }
+
+    .card-text {
+        font-size: 14px;
+        color: #5f6b7a;
+        line-height: 1.5;
+    }
+
+    .card-footer {
+        margin-top: 20px;
+    }
+
+    /* ===== BUTTONS ===== */
+    .stButton > button {
+        border-radius: 10px;
+        height: 42px;
+        font-weight: 500;
+        font-size: 14px;
+    }
+
+    /* ===== FOOTER ===== */
     .footer {
         text-align: center;
-        color: #777;
-        font-size: 13px;
-        margin-top: 40px;
+        font-size: 12px;
+        color: #8892a0;
+        margin-top: 50px;
     }
+
     </style>
     """, unsafe_allow_html=True)
 
-    # ====== HEADER ======
-    logo_html = logo_img(width=110)
+    # ===== HEADER =====
+    logo_html = logo_img(width=90)
 
     st.markdown(f"""
-    <div class="ob-header" style="display:flex; align-items:center; gap:20px;">
+    <div class="ob-header">
         <div class="logo-box">{logo_html}</div>
         <div>
-            <h1 style="margin:0;">OralBiome</h1>
-            <p style="margin:4px 0 0 0; opacity:0.85;">
-                Microbiome Oral Prédictif — Prévention personnalisée par l’IA
-            </p>
+            <div style="font-size:28px; font-weight:600;">OralBiome</div>
+            <div class="subtitle">
+                Analyse prédictive du microbiome oral pour la prévention systémique
+            </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # ====== CARTES ======
-    col1, col2, col3 = st.columns(3)
+    st.markdown("<div style='height:30px'></div>", unsafe_allow_html=True)
+
+    # ===== CARDS =====
+    col1, col2, col3 = st.columns(3, gap="large")
 
     # --- PRATICIEN ---
     with col1:
         st.markdown("""
         <div class="card">
-            <div class="card-title">🩺 Praticien</div>
-            <div class="card-text">
-                Tableau de bord complet, gestion des patients,
-                analyses avancées et rapports PDF automatisés.
+            <div>
+                <div class="card-title">🩺 Espace Praticien</div>
+                <div class="card-text">
+                    Accédez à un tableau de bord complet pour analyser,
+                    suivre et générer des rapports cliniques avancés.
+                </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-        if st.button("Connexion Praticien", use_container_width=True, type="primary"):
+        if st.button("Se connecter", use_container_width=True, type="primary"):
             st.session_state.mode = "praticien"
             st.rerun()
 
@@ -1418,40 +1453,45 @@ if st.session_state.mode == "choix":
     with col2:
         st.markdown("""
         <div class="card">
-            <div class="card-title">🧑 Patient</div>
-            <div class="card-text">
-                Rapport personnalisé, recommandations nutritionnelles,
-                suivi des risques et historique de santé.
+            <div>
+                <div class="card-title">🧑 Espace Patient</div>
+                <div class="card-text">
+                    Consultez votre analyse personnalisée,
+                    vos recommandations et votre suivi santé.
+                </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-        if st.button("Accès Patient", use_container_width=True):
+        if st.button("Accéder à mon espace", use_container_width=True):
             st.session_state.mode = "patient"
             st.rerun()
 
-    # --- À PROPOS ---
+    # --- ABOUT ---
     with col3:
         st.markdown("""
         <div class="card">
-            <div class="card-title">ℹ️ À propos</div>
-            <div class="card-text">
-                Corrélation entre microbiote oral et risques systémiques :
-                cardiovasculaire, diabète, Alzheimer…
+            <div>
+                <div class="card-title">ℹ️ À propos</div>
+                <div class="card-text">
+                    OralBiome utilise l’IA pour corréler le microbiote oral
+                    avec les risques systémiques (cardio, diabète, neuro…).
+                </div>
             </div>
-            <div style="font-size:13px; color:#1f4e79;">
-                contact@oralbiome.com
+            <div class="card-footer">
+                <span style="font-size:13px; color:#1f4e79;">
+                    contact@oralbiome.com
+                </span>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-    # ====== FOOTER ======
+    # ===== FOOTER =====
     st.markdown("""
     <div class="footer">
-        © 2026 OralBiome — Prévention santé augmentée par IA
+        © 2026 OralBiome — Clinical Intelligence Platform
     </div>
     """, unsafe_allow_html=True)
-
 
 # ============================================================
 # PORTAIL PATIENT
