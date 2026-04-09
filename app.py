@@ -1436,7 +1436,7 @@ if st.session_state.mode == "choix":
         st.markdown("""
         <div class="card">
             <div>
-                <div class="card-title">🩺 Espace Praticien</div>
+                <div class="card-title">Espace Praticien</div>
                 <div class="card-text">
                     Accédez à un tableau de bord complet pour analyser,
                     suivre et générer des rapports cliniques avancés.
@@ -1454,7 +1454,7 @@ if st.session_state.mode == "choix":
         st.markdown("""
         <div class="card">
             <div>
-                <div class="card-title">🧑 Espace Patient</div>
+                <div class="card-title">Espace Patient</div>
                 <div class="card-text">
                     Consultez votre analyse personnalisée,
                     vos recommandations et votre suivi santé.
