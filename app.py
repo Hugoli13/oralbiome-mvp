@@ -1685,7 +1685,7 @@ elif st.session_state.mode == "praticien":
         with col2:
             st.markdown("<br>", unsafe_allow_html=True)
             if LOGO_B64:
-                st.markdown(f"<div style='text-align:center;'>{logo_img(width=160)}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align:center;'>{logo_img(width=400)}</div>", unsafe_allow_html=True)
             else:
                 st.markdown("<h2 style='text-align:center; color:#1a3a5c;'>🦷 OralBiome</h2>", unsafe_allow_html=True)
             st.markdown("<h4 style='text-align:center; color:#64748b;'>Portail Praticien</h4>", unsafe_allow_html=True)
