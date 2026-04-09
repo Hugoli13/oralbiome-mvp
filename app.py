@@ -1412,7 +1412,7 @@ if st.session_state.mode == "choix":
     """, unsafe_allow_html=True)
 
     # ===== HEADER =====
-    logo_html = logo_img(width=90)
+    logo_html = logo_img(width=200)
 
     st.markdown(f"""
     <div class="ob-header">
