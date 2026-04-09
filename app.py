@@ -32,8 +32,8 @@ LOGO_B64 = _load_logo_b64()
 def logo_img(width: int = 160, style: str = "") -> str:
     """Retourne une balise <img> avec le logo embarqué, ou le nom texte si absent."""
     if LOGO_B64:
-        return f'<img src="data:image/png;base64,{LOGO_B64}" width="{width}" style="display:block;{style}" />"'
-    return '<span style="font-family:DM Serif Display,serif;font-size:1.4rem;color:#1a3a5c;">🦷 OralBiome</span>'
+        return f'<img src="data:image/png;base64,{LOGO_B64}" width="{width}" style="display:block;{style}" />'
+    return '<span style="font-family:Syne,sans-serif;font-size:1.4rem;color:#00c8b4;font-weight:800;">🦷 OralBiome</span>'
 
 # ============================================================
 # MOTEUR BENCHMARK NHANES — Diversité Microbienne
@@ -99,13 +99,13 @@ def nhanes_percentile_rank(score: float, age: int = None) -> dict:
             break
 
     if score >= NHANES_THRESHOLDS["excellent"]:
-        niveau, niveau_label, niveau_color = "excellent", "Excellent 🌟", "#16a34a"
+        niveau, niveau_label, niveau_color = "excellent", "Excellent 🌟", "#1de986"
     elif score >= NHANES_THRESHOLDS["bon"]:
-        niveau, niveau_label, niveau_color = "bon", "Bon 👍", "#2563eb"
+        niveau, niveau_label, niveau_color = "bon", "Bon 👍", "#3d9eff"
     elif score >= NHANES_THRESHOLDS["modere"]:
-        niveau, niveau_label, niveau_color = "modere", "Modéré ⚠️", "#d97706"
+        niveau, niveau_label, niveau_color = "modere", "Modéré ⚠️", "#ffb547"
     else:
-        niveau, niveau_label, niveau_color = "faible", "Faible 🔴", "#e11d48"
+        niveau, niveau_label, niveau_color = "faible", "Faible 🔴", "#ff3d6a"
 
     benchmark_global = f"Meilleur que **{pct_global}%** de la population générale"
 
@@ -148,55 +148,63 @@ def render_diversity_benchmark(diversite: float, age: int = None, context: str =
     pct = bm["percentile_global"]
 
     st.markdown(f"""
-    <div style="background:linear-gradient(135deg,{color}12,{color}06);
-         border:1.5px solid {color}40;border-radius:16px;padding:20px 24px;margin:12px 0;">
+    <div style="background:var(--bg-card);
+         border:1.5px solid {color}50; border-top:2px solid {color};
+         border-radius:18px; padding:22px 26px; margin:12px 0;
+         box-shadow:0 0 28px {color}18, 0 4px 20px rgba(0,0,0,0.5);">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
             <div>
-                <div style="font-size:0.75rem;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">
+                <div style="font-family:'Space Mono',monospace;font-size:0.63rem;color:#7a8fa8;
+                     font-weight:400;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:6px;">
                     Score Diversité Microbienne
                 </div>
-                <div style="font-family:'DM Serif Display',serif;font-size:2.8rem;color:{color};line-height:1;">
-                    {diversite}<span style="font-size:1.2rem;color:#9ca3af;">/100</span>
+                <div style="font-family:'Syne',sans-serif;font-size:3rem;color:{color};line-height:1;font-weight:800;">
+                    {diversite}<span style="font-size:1.1rem;color:#3d5068;">/100</span>
                 </div>
-                <span style="background:{color}20;color:{color};font-weight:600;padding:3px 12px;border-radius:20px;font-size:0.85rem;">
+                <span style="background:{color}20;color:{color};font-weight:600;padding:4px 14px;
+                     border-radius:20px;font-size:0.78rem;font-family:'Space Mono',monospace;
+                     letter-spacing:0.04em;margin-top:8px;display:inline-block;">
                     {bm['niveau_label']}
                 </span>
             </div>
             <div style="text-align:right;">
-                <div style="font-size:0.8rem;color:#6b7280;margin-bottom:2px;">vs population générale</div>
-                <div style="font-family:'DM Serif Display',serif;font-size:2rem;color:{color};line-height:1;">
+                <div style="font-family:'Space Mono',monospace;font-size:0.63rem;color:#7a8fa8;
+                     margin-bottom:4px;text-transform:uppercase;letter-spacing:0.1em;">vs population générale</div>
+                <div style="font-family:'Syne',sans-serif;font-size:2.4rem;color:{color};line-height:1;font-weight:800;">
                     Top {100 - pct}%
                 </div>
-                <div style="font-size:0.78rem;color:#9ca3af;margin-top:4px;">sur {bm['nhanes_n']:,} patients NHANES</div>
+                <div style="font-family:'Space Mono',monospace;font-size:0.68rem;color:#3d5068;margin-top:4px;">
+                    sur {bm['nhanes_n']:,} patients NHANES
+                </div>
             </div>
         </div>
-        <div style="margin-top:14px;padding-top:12px;border-top:1px solid {color}20;">
-            <div style="font-size:0.9rem;color:#374151;margin-bottom:4px;">🌍 {bm['benchmark_global']}</div>
-            {"" if not bm['benchmark_age'] else f'<div style="font-size:0.9rem;color:#374151;">👤 {bm["benchmark_age"]}</div>'}
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid {color}20;">
+            <div style="font-size:0.88rem;color:#e8f0fe;margin-bottom:4px;">🌍 {bm['benchmark_global']}</div>
+            {"" if not bm['benchmark_age'] else f'<div style="font-size:0.88rem;color:#e8f0fe;">👤 {bm["benchmark_age"]}</div>'}
         </div>
     </div>
     """, unsafe_allow_html=True)
 
     # Barre percentile visuelle
-    bar_segs = [(25,"#fee2e2"),(25,"#fef3c7"),(25,"#dbeafe"),(15,"#dcfce7"),(10,"#bbf7d0")]
-    bar_html = '<div style="display:flex;border-radius:8px;overflow:hidden;height:12px;margin:8px 0 2px 0;">'
+    bar_segs = [(25,"rgba(255,61,106,0.4)"),(25,"rgba(255,181,71,0.4)"),(25,"rgba(61,158,255,0.4)"),(15,"rgba(29,233,134,0.4)"),(10,"rgba(29,233,134,0.7)")]
+    bar_html = '<div style="display:flex;border-radius:8px;overflow:hidden;height:8px;margin:10px 0 2px 0;border:1px solid rgba(255,255,255,0.06);">'
     for w, bg in bar_segs:
-        bar_html += f'<div style="flex:{w};background:{bg};border-right:1px solid white;"></div>'
+        bar_html += f'<div style="flex:{w};background:{bg};"></div>'
     bar_html += "</div>"
-    bar_html += f'<div style="position:relative;height:20px;">'
+    bar_html += f'<div style="position:relative;height:22px;">'
     bar_html += f'<div style="position:absolute;left:{pct}%;transform:translateX(-50%);">'
-    bar_html += f'<div style="width:3px;height:12px;background:{color};margin:0 auto;"></div>'
-    bar_html += f'<div style="font-size:0.7rem;font-weight:700;color:{color};white-space:nowrap;transform:translateX(-40%);">P{pct} — vous</div>'
+    bar_html += f'<div style="width:2px;height:10px;background:{color};margin:0 auto;box-shadow:0 0 6px {color};"></div>'
+    bar_html += f'<div style="font-family:\'Space Mono\',monospace;font-size:0.65rem;font-weight:700;color:{color};white-space:nowrap;transform:translateX(-40%);margin-top:2px;">P{pct} — vous</div>'
     bar_html += "</div></div>"
     st.markdown(bar_html, unsafe_allow_html=True)
 
     leg_cols = st.columns(5)
     for col, (lbl, c) in zip(leg_cols, [
-        ("< P25\nFaible","#e11d48"),("P25–50\nModéré","#d97706"),
-        ("P50–75\nBon","#2563eb"),("P75–85\nExcellent","#16a34a"),
-        ("> P90\nTop 10%","#15803d")
+        ("< P25\nFaible","#ff3d6a"),("P25–50\nModéré","#ffb547"),
+        ("P50–75\nBon","#3d9eff"),("P75–85\nExcellent","#1de986"),
+        ("> P90\nTop 10%","#00c8b4")
     ]):
-        col.markdown(f"<div style='text-align:center;font-size:0.68rem;color:{c};font-weight:600;line-height:1.3;'>{lbl}</div>",
+        col.markdown(f"<div style='text-align:center;font-family:Space Mono,monospace;font-size:0.62rem;color:{c};font-weight:600;line-height:1.4;'>{lbl}</div>",
                      unsafe_allow_html=True)
 
     if context == "praticien":
@@ -209,142 +217,333 @@ def render_diversity_benchmark(diversite: float, age: int = None, context: str =
         ]):
             d = NHANES_CLINICAL[key]
             col.markdown(f"""
-            <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:12px;text-align:center;">
-                <div style="font-size:1.2rem;">{icon}</div>
-                <div style="font-weight:600;font-size:0.85rem;margin:4px 0;">{label}</div>
-                <div style="font-family:'DM Serif Display',serif;font-size:1.4rem;color:#e11d48;">−{d['difference']} pts</div>
-                <div style="font-size:0.72rem;color:#6b7280;">sains: {d['mean_sain']} vs malades: {d['mean_malade']}</div>
-                <div style="font-size:0.7rem;color:#16a34a;margin-top:4px;font-weight:600;">p={d['p_value']}</div>
+            <div style="background:var(--bg-surface);border:1px solid var(--border-dim);border-radius:12px;padding:14px;text-align:center;">
+                <div style="font-size:1.3rem;">{icon}</div>
+                <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:0.88rem;margin:6px 0;color:#e8f0fe;">{label}</div>
+                <div style="font-family:'Syne',sans-serif;font-size:1.5rem;color:#ff3d6a;font-weight:800;">−{d['difference']} pts</div>
+                <div style="font-family:'Space Mono',monospace;font-size:0.68rem;color:#7a8fa8;">sains: {d['mean_sain']} vs malades: {d['mean_malade']}</div>
+                <div style="font-family:'Space Mono',monospace;font-size:0.68rem;color:#1de986;margin-top:4px;font-weight:700;">p={d['p_value']}</div>
             </div>""", unsafe_allow_html=True)
         mort = NHANES_CLINICAL["mortalite"]
         st.markdown(f"""
-        <div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #16a34a40;
-             border-radius:10px;padding:12px 16px;margin-top:8px;">
-            <b>💚 Mortalité toutes causes</b> — HR={mort['hazard_ratio']} {mort['ci_95']}<br>
-            <span style="font-size:0.85rem;color:#374151;">{mort['interpretation']}</span><br>
-            <span style="font-size:0.72rem;color:#9ca3af;">Shen et al. J Clin Periodontol 2024 · 7 055 adultes · suivi 9 ans</span>
+        <div style="background:rgba(29,233,134,0.06);border:1px solid rgba(29,233,134,0.2);
+             border-radius:12px;padding:14px 18px;margin-top:10px;">
+            <b style="color:#1de986;">💚 Mortalité toutes causes</b> — HR={mort['hazard_ratio']} {mort['ci_95']}<br>
+            <span style="font-size:0.85rem;color:#e8f0fe;">{mort['interpretation']}</span><br>
+            <span style="font-family:'Space Mono',monospace;font-size:0.68rem;color:#3d5068;">Shen et al. J Clin Periodontol 2024 · 7 055 adultes · suivi 9 ans</span>
         </div>""", unsafe_allow_html=True)
 
 # ============================================================
-# CSS
+# CSS — HEALTH-TECH DARK PREMIUM
 # ============================================================
 st.markdown("""
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display:ital@0;1&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap');
 
-  html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
+/* ── VARIABLES ── */
+:root {
+  --bg-void:       #050a12;
+  --bg-deep:       #080e1a;
+  --bg-card:       #0c1525;
+  --bg-surface:    #111d30;
+  --bg-elevated:   #162238;
+  --border-dim:    rgba(255,255,255,0.06);
+  --border-glow:   rgba(0,200,180,0.25);
+  --teal:          #00c8b4;
+  --teal-dim:      rgba(0,200,180,0.12);
+  --teal-glow:     rgba(0,200,180,0.35);
+  --blue-neon:     #3d9eff;
+  --red-vital:     #ff3d6a;
+  --amber-warn:    #ffb547;
+  --green-ok:      #1de986;
+  --text-primary:  #e8f0fe;
+  --text-secondary:#7a8fa8;
+  --text-muted:    #3d5068;
+  --font-display:  'Syne', sans-serif;
+  --font-body:     'IBM Plex Sans', sans-serif;
+  --font-mono:     'Space Mono', monospace;
+  --radius-sm:     6px;
+  --radius-md:     12px;
+  --radius-lg:     18px;
+  --radius-xl:     24px;
+  --shadow-card:   0 4px 24px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.04) inset;
+  --shadow-glow:   0 0 30px rgba(0,200,180,0.15), 0 4px 24px rgba(0,0,0,0.5);
+}
 
-  .ob-header {
-    background: linear-gradient(135deg, #0a1628 0%, #1a3a5c 60%, #0d2640 100%);
-    border-radius: 16px; padding: 28px 32px; margin-bottom: 24px;
-    border: 1px solid rgba(255,255,255,0.08);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-  }
-  .ob-header h1 { font-family: 'DM Serif Display', serif; color: #fff; margin: 0; font-size: 2rem; }
-  .ob-header p { color: rgba(255,255,255,0.6); margin: 4px 0 0 0; font-size: 0.9rem; }
+/* ── BASE ── */
+html, body, [class*="css"], .stApp {
+  font-family: var(--font-body) !important;
+  background: var(--bg-void) !important;
+  color: var(--text-primary) !important;
+}
 
-  .risk-card {
-    border-radius: 12px; padding: 20px; margin: 8px 0;
-    border: 1px solid rgba(0,0,0,0.06);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-  .risk-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
-  .risk-low  { background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-left: 4px solid #16a34a; }
-  .risk-med  { background: linear-gradient(135deg, #fffbeb, #fef3c7); border-left: 4px solid #d97706; }
-  .risk-high { background: linear-gradient(135deg, #fff1f2, #ffe4e6); border-left: 4px solid #e11d48; }
+/* Grille de points en fond */
+.stApp::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(0,200,180,0.04) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(61,158,255,0.04) 0%, transparent 50%),
+    radial-gradient(rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 28px 28px;
+  pointer-events: none; z-index: 0;
+}
 
-  .systemic-card {
-    background: #fff; border-radius: 14px; padding: 20px 24px;
-    border: 1px solid #e5e7eb; margin: 10px 0;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  }
-  .systemic-title { font-family: 'DM Serif Display', serif; font-size: 1.1rem; color: #1a3a5c; margin: 0 0 8px 0; }
+/* ── HEADER ── */
+.ob-header {
+  background: linear-gradient(145deg, #080e1a 0%, #0c1a2e 50%, #091520 100%);
+  border: 1px solid var(--border-dim);
+  border-top: 2px solid rgba(0,200,180,0.4);
+  border-radius: var(--radius-xl);
+  padding: 32px 36px; margin-bottom: 28px;
+  box-shadow: var(--shadow-glow);
+  position: relative; overflow: hidden;
+}
+.ob-header::before {
+  content: ''; position: absolute; top: -60px; right: -60px;
+  width: 220px; height: 220px;
+  background: radial-gradient(circle, rgba(0,200,180,0.09) 0%, transparent 70%);
+  pointer-events: none;
+}
+.ob-header::after {
+  content: ''; position: absolute; bottom: -40px; left: 8%;
+  width: 320px; height: 110px;
+  background: radial-gradient(ellipse, rgba(61,158,255,0.07) 0%, transparent 70%);
+  pointer-events: none;
+}
+.ob-header h1 {
+  font-family: var(--font-display) !important;
+  font-size: 2rem !important; font-weight: 800 !important;
+  color: var(--text-primary) !important; letter-spacing: -0.03em !important; margin: 0 !important;
+}
+.ob-header p {
+  font-family: var(--font-mono) !important;
+  font-size: 0.72rem !important; color: var(--teal) !important;
+  letter-spacing: 0.1em !important; margin: 8px 0 0 0 !important; text-transform: uppercase;
+}
 
-  .score-ring {
-    display: flex; align-items: center; justify-content: center;
-    width: 72px; height: 72px; border-radius: 50%;
-    font-weight: 600; font-size: 1.1rem; color: #fff;
-    flex-shrink: 0;
-  }
-  .score-low  { background: linear-gradient(135deg, #16a34a, #22c55e); }
-  .score-med  { background: linear-gradient(135deg, #d97706, #f59e0b); }
-  .score-high { background: linear-gradient(135deg, #e11d48, #f43f5e); }
+/* ── RISK CARDS ── */
+.risk-card {
+  border-radius: var(--radius-md); padding: 20px; margin: 8px 0;
+  border: 1px solid var(--border-dim);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  position: relative; overflow: hidden;
+}
+.risk-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+.risk-low  { background: linear-gradient(135deg, rgba(29,233,134,0.07), rgba(29,233,134,0.02)); border-left: 4px solid #1de986; border-color: rgba(29,233,134,0.25); }
+.risk-med  { background: linear-gradient(135deg, rgba(255,181,71,0.07), rgba(255,181,71,0.02));  border-left: 4px solid #ffb547; border-color: rgba(255,181,71,0.25); }
+.risk-high { background: linear-gradient(135deg, rgba(255,61,106,0.07), rgba(255,61,106,0.02));  border-left: 4px solid #ff3d6a; border-color: rgba(255,61,106,0.25); }
 
-  .photo-upload-zone {
-    border: 2px dashed #cbd5e1; border-radius: 16px;
-    padding: 48px; text-align: center;
-    background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-    cursor: pointer; transition: all 0.3s ease;
-  }
-  .photo-upload-zone:hover { border-color: #1a3a5c; background: #f0f4ff; }
+/* ── SYSTEMIC CARD ── */
+.systemic-card {
+  background: var(--bg-surface);
+  border-radius: var(--radius-md); padding: 20px 24px;
+  border: 1px solid var(--border-dim); margin: 10px 0;
+  box-shadow: var(--shadow-card); transition: border-color 0.2s ease;
+}
+.systemic-card:hover { border-color: var(--border-glow); }
+.systemic-title { font-family: var(--font-display); font-size: 1.1rem; color: var(--text-primary); margin: 0 0 8px 0; font-weight: 700; }
 
-  .finding-badge {
-    display: inline-block; padding: 4px 12px; border-radius: 20px;
-    font-size: 0.78rem; font-weight: 500; margin: 3px;
-  }
-  .finding-alert { background: #fee2e2; color: #991b1b; }
-  .finding-warn  { background: #fef3c7; color: #92400e; }
-  .finding-ok    { background: #dcfce7; color: #166534; }
+/* ── SCORE RINGS ── */
+.score-ring {
+  display: flex; align-items: center; justify-content: center;
+  width: 72px; height: 72px; border-radius: 50%;
+  font-family: var(--font-display); font-weight: 700; font-size: 1.1rem;
+  color: #050a12; flex-shrink: 0;
+}
+.score-low  { background: #1de986; box-shadow: 0 0 22px rgba(29,233,134,0.45); }
+.score-med  { background: #ffb547; box-shadow: 0 0 22px rgba(255,181,71,0.45); }
+.score-high { background: #ff3d6a; box-shadow: 0 0 22px rgba(255,61,106,0.45); }
 
-  .pill-green { display:inline-block; background:#d1fae5; border-radius:20px; padding:5px 14px; margin:3px; font-size:13px; color:#065f46; font-weight:500; }
-  .pill-red   { display:inline-block; background:#fee2e2; border-radius:20px; padding:5px 14px; margin:3px; font-size:13px; color:#991b1b; font-weight:500; }
+/* ── PHOTO UPLOAD ── */
+.photo-upload-zone {
+  border: 2px dashed rgba(0,200,180,0.25); border-radius: var(--radius-lg);
+  padding: 48px; text-align: center;
+  background: linear-gradient(135deg, rgba(0,200,180,0.03), rgba(61,158,255,0.03));
+  cursor: pointer; transition: all 0.3s ease;
+}
+.photo-upload-zone:hover { border-color: var(--teal); background: rgba(0,200,180,0.06); box-shadow: 0 0 30px rgba(0,200,180,0.1); }
 
-  .reco-card { padding:14px 18px; border-radius:8px; margin:8px 0; }
-  .reco-red    { background:#fff5f5; border-left:4px solid #dc3545; }
-  .reco-orange { background:#fff8f0; border-left:4px solid #fd7e14; }
-  .reco-green  { background:#f0fff4; border-left:4px solid #28a745; }
+/* ── FINDING BADGES ── */
+.finding-badge {
+  display: inline-block; padding: 4px 12px; border-radius: 20px;
+  font-family: var(--font-mono); font-size: 0.72rem; font-weight: 400; margin: 3px;
+}
+.finding-alert { background: rgba(255,61,106,0.15);  color: #ff8fa8; border: 1px solid rgba(255,61,106,0.3); }
+.finding-warn  { background: rgba(255,181,71,0.15);  color: #ffd080; border: 1px solid rgba(255,181,71,0.3); }
+.finding-ok    { background: rgba(29,233,134,0.15);  color: #7af7c0; border: 1px solid rgba(29,233,134,0.3); }
 
-  .patient-header {
-    background: linear-gradient(135deg, #1a3a5c, #2563eb);
-    color: white; padding: 24px; border-radius: 12px; margin-bottom: 20px;
-  }
+/* ── PILLS NUTRITION ── */
+.pill-green { display:inline-block; background:rgba(29,233,134,0.1); border:1px solid rgba(29,233,134,0.25); border-radius:20px; padding:5px 14px; margin:3px; font-size:13px; color:#7af7c0; font-weight:500; }
+.pill-red   { display:inline-block; background:rgba(255,61,106,0.1); border:1px solid rgba(255,61,106,0.25); border-radius:20px; padding:5px 14px; margin:3px; font-size:13px; color:#ff8fa8; font-weight:500; }
 
-  .metric-box {
-    background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
-    padding: 16px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-  }
-  .metric-val { font-family: 'DM Serif Display', serif; font-size: 1.8rem; color: #1a3a5c; }
-  .metric-lbl { font-size: 0.8rem; color: #6b7280; margin-top: 2px; }
+/* ── RECO CARDS ── */
+.reco-card { padding:14px 18px; border-radius:var(--radius-sm); margin:8px 0; }
+.reco-red    { background:rgba(255,61,106,0.07); border-left:4px solid #ff3d6a; }
+.reco-orange { background:rgba(255,181,71,0.07); border-left:4px solid #ffb547; }
+.reco-green  { background:rgba(29,233,134,0.07); border-left:4px solid #1de986; }
 
-  /* DASHBOARD */
-  .kpi-card {
-    background: #fff; border-radius: 16px; padding: 22px 24px;
-    border: 1px solid #e5e7eb; box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-    transition: transform 0.2s ease;
-  }
-  .kpi-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
-  .kpi-num { font-family: 'DM Serif Display', serif; font-size: 2.4rem; line-height: 1; }
-  .kpi-lbl { font-size: 0.82rem; color: #6b7280; margin-top: 4px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
-  .kpi-delta { font-size: 0.8rem; margin-top: 6px; font-weight: 600; }
-  .kpi-red   { color: #e11d48; }
-  .kpi-green { color: #16a34a; }
-  .kpi-blue  { color: #2563eb; }
-  .kpi-amber { color: #d97706; }
+/* ── PATIENT HEADER ── */
+.patient-header {
+  background: linear-gradient(145deg, var(--bg-deep), var(--bg-surface));
+  border: 1px solid var(--border-dim); border-top: 2px solid rgba(0,200,180,0.4);
+  color: var(--text-primary); padding: 24px; border-radius: var(--radius-lg);
+  margin-bottom: 20px; box-shadow: var(--shadow-glow);
+}
 
-  /* ALERTES */
-  .alert-card {
-    background: #fff; border-radius: 12px; padding: 16px 20px; margin: 8px 0;
-    border: 1px solid #fee2e2; border-left: 5px solid #e11d48;
-    box-shadow: 0 2px 8px rgba(225,29,72,0.08);
-    display: flex; align-items: flex-start; gap: 14px;
-  }
-  .alert-card.warn {
-    border-color: #fef3c7; border-left-color: #d97706;
-    box-shadow: 0 2px 8px rgba(217,119,6,0.08);
-  }
-  .alert-card.info {
-    border-color: #dbeafe; border-left-color: #2563eb;
-    box-shadow: 0 2px 8px rgba(37,99,235,0.08);
-  }
-  .alert-icon { font-size: 1.5rem; flex-shrink: 0; margin-top: 2px; }
-  .alert-body { flex: 1; }
-  .alert-title { font-weight: 600; font-size: 0.95rem; color: #111827; margin: 0 0 3px 0; }
-  .alert-desc  { font-size: 0.85rem; color: #6b7280; margin: 0; }
-  .alert-meta  { font-size: 0.75rem; color: #9ca3af; margin-top: 5px; }
+/* ── METRIC BOX ── */
+.metric-box {
+  background: var(--bg-card); border: 1px solid var(--border-dim);
+  border-radius: var(--radius-md); padding: 16px; text-align: center;
+  box-shadow: var(--shadow-card);
+}
+.metric-val { font-family: var(--font-display); font-size: 1.8rem; color: var(--teal); font-weight: 800; }
+.metric-lbl { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-secondary); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.08em; }
 
-  /* DONUT placeholder */
-  .progress-bar-wrap { background: #f1f5f9; border-radius: 8px; height: 10px; overflow: hidden; margin: 6px 0; }
-  .progress-bar-fill { height: 100%; border-radius: 8px; transition: width 0.4s ease; }
+/* ── KPI CARDS DASHBOARD ── */
+.kpi-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg); padding: 22px 24px;
+  border: 1px solid var(--border-dim); box-shadow: var(--shadow-card);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  position: relative; overflow: hidden;
+  animation: slideUp 0.35s ease both;
+}
+.kpi-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--teal), transparent); opacity: 0.5;
+}
+.kpi-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-glow); border-color: var(--border-glow); }
+.kpi-num   { font-family: var(--font-display); font-size: 2.4rem; line-height: 1; font-weight: 800; letter-spacing: -0.03em; }
+.kpi-lbl   { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-secondary); margin-top: 4px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.08em; }
+.kpi-delta { font-size: 0.8rem; margin-top: 6px; font-weight: 600; font-family: var(--font-body); }
+.kpi-red   { color: #ff3d6a; }
+.kpi-green { color: #1de986; }
+.kpi-blue  { color: #3d9eff; }
+.kpi-amber { color: #ffb547; }
+.kpi-teal  { color: #00c8b4; }
+
+/* ── ALERTES ── */
+.alert-card {
+  background: var(--bg-card); border-radius: var(--radius-md); padding: 16px 20px; margin: 8px 0;
+  border: 1px solid rgba(255,61,106,0.2); border-left: 5px solid #ff3d6a;
+  box-shadow: 0 2px 8px rgba(255,61,106,0.08);
+  display: flex; align-items: flex-start; gap: 14px;
+  transition: box-shadow 0.2s ease;
+}
+.alert-card:hover { box-shadow: 0 4px 20px rgba(255,61,106,0.18); }
+.alert-card.warn { border-color: rgba(255,181,71,0.2); border-left-color: #ffb547; box-shadow: 0 2px 8px rgba(255,181,71,0.08); }
+.alert-card.warn:hover { box-shadow: 0 4px 20px rgba(255,181,71,0.18); }
+.alert-card.info { border-color: rgba(61,158,255,0.2); border-left-color: #3d9eff; box-shadow: 0 2px 8px rgba(61,158,255,0.08); }
+.alert-icon  { font-size: 1.5rem; flex-shrink: 0; margin-top: 2px; }
+.alert-body  { flex: 1; }
+.alert-title { font-family: var(--font-body); font-weight: 600; font-size: 0.95rem; color: var(--text-primary); margin: 0 0 3px 0; }
+.alert-desc  { font-size: 0.85rem; color: var(--text-secondary); margin: 0; }
+.alert-meta  { font-family: var(--font-mono); font-size: 0.72rem; color: var(--teal); margin-top: 5px; }
+
+/* ── PROGRESS BARS ── */
+.progress-bar-wrap { background: var(--bg-surface); border-radius: 8px; height: 8px; overflow: hidden; margin: 8px 0; border: 1px solid var(--border-dim); }
+.progress-bar-fill { height: 100%; border-radius: 8px; transition: width 0.4s ease; }
+
+/* ── STREAMLIT OVERRIDES ── */
+.stApp, .main, .block-container { background: var(--bg-void) !important; }
+section[data-testid="stSidebar"], [data-testid="stSidebarContent"] {
+  background: var(--bg-deep) !important; border-right: 1px solid var(--border-dim) !important;
+}
+
+.stTextInput > div > div > input,
+.stNumberInput > div > div > input,
+.stPasswordInput > div > div > input,
+.stDateInput > div > div > input {
+  background: var(--bg-surface) !important; border: 1px solid var(--border-dim) !important;
+  color: var(--text-primary) !important; border-radius: var(--radius-sm) !important;
+  font-family: var(--font-body) !important;
+}
+.stTextInput > div > div > input:focus,
+.stNumberInput > div > div > input:focus {
+  border-color: var(--teal) !important; box-shadow: 0 0 0 2px rgba(0,200,180,0.15) !important;
+}
+
+.stButton > button[kind="primary"] {
+  background: linear-gradient(135deg, #00c8b4, #00a896) !important;
+  color: #050a12 !important; border: none !important;
+  font-family: var(--font-display) !important; font-weight: 700 !important;
+  letter-spacing: 0.02em !important; border-radius: var(--radius-sm) !important;
+  box-shadow: 0 0 20px rgba(0,200,180,0.3) !important; transition: all 0.2s ease !important;
+}
+.stButton > button[kind="primary"]:hover { transform: translateY(-1px) !important; box-shadow: 0 0 32px rgba(0,200,180,0.55) !important; }
+
+.stButton > button[kind="secondary"],
+.stButton > button:not([kind]) {
+  background: var(--bg-surface) !important; border: 1px solid var(--border-dim) !important;
+  color: var(--text-secondary) !important; font-family: var(--font-body) !important;
+  border-radius: var(--radius-sm) !important; transition: all 0.2s ease !important;
+}
+.stButton > button:hover { border-color: var(--teal) !important; color: var(--teal) !important; }
+
+.stDownloadButton > button {
+  background: linear-gradient(135deg, rgba(0,200,180,0.15), rgba(0,200,180,0.08)) !important;
+  border: 1px solid rgba(0,200,180,0.35) !important; color: var(--teal) !important;
+  font-family: var(--font-display) !important; font-weight: 700 !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+[data-testid="stMetric"] {
+  background: var(--bg-card) !important; border: 1px solid var(--border-dim) !important;
+  border-radius: var(--radius-md) !important; padding: 16px !important;
+  box-shadow: var(--shadow-card) !important;
+}
+[data-testid="stMetricLabel"] {
+  font-family: var(--font-mono) !important; font-size: 0.65rem !important;
+  letter-spacing: 0.1em !important; text-transform: uppercase !important;
+  color: var(--text-secondary) !important;
+}
+[data-testid="stMetricValue"] { font-family: var(--font-display) !important; font-weight: 800 !important; color: var(--text-primary) !important; }
+
+.stDataFrame, [data-testid="stDataFrameResizable"] { border: 1px solid var(--border-dim) !important; border-radius: var(--radius-md) !important; overflow: hidden !important; }
+
+.stTabs [data-baseweb="tab-list"] {
+  background: var(--bg-surface) !important; border-radius: var(--radius-md) !important;
+  border: 1px solid var(--border-dim) !important; gap: 4px !important; padding: 6px !important;
+}
+.stTabs [data-baseweb="tab"] {
+  font-family: var(--font-body) !important; font-size: 0.82rem !important;
+  color: var(--text-secondary) !important; border-radius: var(--radius-sm) !important;
+  background: transparent !important; transition: all 0.15s ease !important;
+}
+.stTabs [aria-selected="true"] { background: var(--bg-elevated) !important; color: var(--teal) !important; box-shadow: 0 0 14px rgba(0,200,180,0.2) !important; }
+
+.streamlit-expanderHeader {
+  background: var(--bg-surface) !important; border: 1px solid var(--border-dim) !important;
+  border-radius: var(--radius-sm) !important; color: var(--text-primary) !important;
+  font-family: var(--font-body) !important;
+}
+
+.stSlider > div > div > div > div { background: var(--teal) !important; }
+.stCheckbox > label { color: var(--text-primary) !important; font-family: var(--font-body) !important; }
+.stSelectbox [data-baseweb="select"] > div { background: var(--bg-surface) !important; border-color: var(--border-dim) !important; color: var(--text-primary) !important; }
+
+h1, h2, h3, h4 { font-family: var(--font-display) !important; color: var(--text-primary) !important; letter-spacing: -0.02em !important; }
+p, li, label, .stMarkdown { font-family: var(--font-body) !important; color: var(--text-primary) !important; }
+.stCaption, caption { font-family: var(--font-mono) !important; font-size: 0.7rem !important; color: var(--text-muted) !important; }
+
+code { background: rgba(0,200,180,0.1) !important; color: var(--teal) !important; border: 1px solid rgba(0,200,180,0.2) !important; border-radius: 4px !important; font-family: var(--font-mono) !important; padding: 2px 7px !important; font-size: 0.82em !important; }
+hr { border-color: var(--border-dim) !important; }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb { background: var(--bg-elevated); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--teal); }
+
+.stSuccess { background: rgba(29,233,134,0.08) !important; border: 1px solid rgba(29,233,134,0.25) !important; color: #7af7c0 !important; border-radius: var(--radius-md) !important; }
+.stWarning { background: rgba(255,181,71,0.08) !important; border: 1px solid rgba(255,181,71,0.25) !important; color: #ffd080 !important; border-radius: var(--radius-md) !important; }
+.stError   { background: rgba(255,61,106,0.08) !important; border: 1px solid rgba(255,61,106,0.25) !important; color: #ff8fa8 !important; border-radius: var(--radius-md) !important; }
+.stInfo    { background: rgba(61,158,255,0.08) !important; border: 1px solid rgba(61,158,255,0.25) !important; color: #90c8ff !important; border-radius: var(--radius-md) !important; }
+
+.stForm { background: var(--bg-card) !important; border: 1px solid var(--border-dim) !important; border-radius: var(--radius-lg) !important; padding: 20px !important; }
+
+@keyframes slideUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulseGlow { 0%,100% { box-shadow: 0 0 10px rgba(0,200,180,0.2); } 50% { box-shadow: 0 0 28px rgba(0,200,180,0.55); } }
 </style>
 """, unsafe_allow_html=True)
 
@@ -597,14 +796,16 @@ def render_photo_analysis(result: dict):
 
     col_score, col_info = st.columns([1, 3])
     with col_score:
-        color = "#16a34a" if score >= 70 else "#d97706" if score >= 45 else "#e11d48"
+        color = "#1de986" if score >= 70 else "#ffb547" if score >= 45 else "#ff3d6a"
         st.markdown(f"""
-        <div style="text-align:center; background: linear-gradient(135deg, {color}22, {color}11);
-             border: 2px solid {color}; border-radius: 16px; padding: 24px;">
-            <div style="font-family: 'DM Serif Display', serif; font-size: 3rem; color: {color}; line-height:1;">
+        <div style="text-align:center; background:var(--bg-surface);
+             border: 2px solid {color}60; border-top: 2px solid {color};
+             border-radius: 16px; padding: 24px;
+             box-shadow: 0 0 24px {color}20;">
+            <div style="font-family:'Syne',sans-serif; font-size: 3rem; color: {color}; line-height:1; font-weight:800;">
                 {score}
             </div>
-            <div style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Score santé visuelle</div>
+            <div style="font-family:'Space Mono',monospace; font-size: 0.65rem; color: #7a8fa8; margin-top: 4px; text-transform:uppercase; letter-spacing:0.1em;">Score santé visuelle</div>
             <div style="font-size: 0.8rem; font-weight: 600; color: {color}; margin-top: 8px;">{profil}</div>
         </div>
         """, unsafe_allow_html=True)
@@ -640,9 +841,9 @@ def render_photo_analysis(result: dict):
                 icon = "🔴" if sev == "alerte" else "🟡" if sev == "attention" else "🟢"
                 st.markdown(f"""
                 <div class='risk-card {css}'>
-                    <div style="font-weight:600; font-size:0.9rem;">{icon} {f.get('zone', 'N/A')}</div>
-                    <div style="font-size:0.85rem; margin-top:4px; color:#374151;">{f.get('observation', '')}</div>
-                    <div style="font-size:0.78rem; margin-top:6px; color:#6b7280; font-style:italic;">{f.get('detail', '')}</div>
+                    <div style="font-family:'Syne',sans-serif; font-weight:700; font-size:0.9rem; color:#e8f0fe;">{icon} {f.get('zone', 'N/A')}</div>
+                    <div style="font-size:0.85rem; margin-top:4px; color:#7a8fa8;">{f.get('observation', '')}</div>
+                    <div style="font-size:0.78rem; margin-top:6px; color:#3d5068; font-style:italic;">{f.get('detail', '')}</div>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -770,26 +971,29 @@ def generer_pdf(patient_nom, r_carieux, r_paro, diversite, historique_df, plan, 
                                 topMargin=15*mm, bottomMargin=15*mm)
 
         styles = getSampleStyleSheet()
-        BLUE = colors.HexColor('#1a3a5c')
-        LIGHT_BLUE = colors.HexColor('#dbeafe')
-        GREEN = colors.HexColor('#16a34a')
-        RED = colors.HexColor('#e11d48')
-        ORANGE = colors.HexColor('#d97706')
-        GRAY_BG = colors.HexColor('#f9fafb')
+        DARK    = colors.HexColor('#050a12')
+        TEAL    = colors.HexColor('#00c8b4')
+        SURFACE = colors.HexColor('#111d30')
+        CARD    = colors.HexColor('#0c1525')
+        GREEN   = colors.HexColor('#1de986')
+        RED     = colors.HexColor('#ff3d6a')
+        AMBER   = colors.HexColor('#ffb547')
+        LIGHT_TEAL = colors.HexColor('#0c2a28')
 
-        title_style = ParagraphStyle('Title', fontSize=18, textColor=colors.white,
+        title_style = ParagraphStyle('Title', fontSize=18, textColor=TEAL,
                                      alignment=TA_CENTER, fontName='Helvetica-Bold', spaceAfter=4)
-        sub_style = ParagraphStyle('Sub', fontSize=10, textColor=colors.white,
+        sub_style = ParagraphStyle('Sub', fontSize=10, textColor=colors.HexColor('#7a8fa8'),
                                    alignment=TA_CENTER, fontName='Helvetica', spaceAfter=6)
-        h1_style = ParagraphStyle('H1', fontSize=13, textColor=BLUE,
+        h1_style = ParagraphStyle('H1', fontSize=13, textColor=TEAL,
                                   fontName='Helvetica-Bold', spaceBefore=10, spaceAfter=4)
-        h2_style = ParagraphStyle('H2', fontSize=11, textColor=BLUE,
+        h2_style = ParagraphStyle('H2', fontSize=11, textColor=colors.HexColor('#e8f0fe'),
                                   fontName='Helvetica-Bold', spaceBefore=6, spaceAfter=3)
-        body_style = ParagraphStyle('Body', fontSize=10, fontName='Helvetica', spaceAfter=3, leading=14)
+        body_style = ParagraphStyle('Body', fontSize=10, fontName='Helvetica', spaceAfter=3, leading=14,
+                                    textColor=colors.HexColor('#e8f0fe'))
         italic_style = ParagraphStyle('Italic', fontSize=9, fontName='Helvetica-Oblique',
-                                      textColor=colors.HexColor('#555555'), spaceAfter=4)
+                                      textColor=colors.HexColor('#7a8fa8'), spaceAfter=4)
         small_style = ParagraphStyle('Small', fontSize=8, fontName='Helvetica',
-                                     textColor=colors.grey, alignment=TA_CENTER)
+                                     textColor=colors.HexColor('#3d5068'), alignment=TA_CENTER)
 
         elems = []
 
@@ -798,7 +1002,7 @@ def generer_pdf(patient_nom, r_carieux, r_paro, diversite, historique_df, plan, 
                        [Paragraph("Microbiome Oral Predictif + Risques Systemiques | Rapport Personnalise", sub_style)]]
         header_table = Table(header_data, colWidths=[180*mm])
         header_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,-1), BLUE),
+            ('BACKGROUND', (0,0), (-1,-1), DARK),
             ('TOPPADDING', (0,0), (-1,-1), 8),
             ('BOTTOMPADDING', (0,0), (-1,-1), 8),
         ]))
@@ -811,7 +1015,7 @@ def generer_pdf(patient_nom, r_carieux, r_paro, diversite, historique_df, plan, 
         ]]
         info_table = Table(info_data, colWidths=[90*mm, 90*mm])
         info_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,-1), LIGHT_BLUE),
+            ('BACKGROUND', (0,0), (-1,-1), SURFACE),
             ('TOPPADDING', (0,0), (-1,-1), 6), ('BOTTOMPADDING', (0,0), (-1,-1), 6),
             ('LEFTPADDING', (0,0), (-1,-1), 8),
         ]))
@@ -820,21 +1024,21 @@ def generer_pdf(patient_nom, r_carieux, r_paro, diversite, historique_df, plan, 
 
         # RÉSULTATS MICROBIOME
         elems.append(Paragraph("Resultats de l'Analyse Microbiome", h1_style))
-        elems.append(HRFlowable(width="100%", thickness=1, color=LIGHT_BLUE))
+        elems.append(HRFlowable(width="100%", thickness=1, color=TEAL))
         res_data = [
             [Paragraph("<b>Risque Carieux</b>", body_style),
-             Paragraph(f"<font color='{'#e11d48' if r_carieux=='Eleve' else '#16a34a'}'><b>{r_carieux}</b></font>", body_style)],
+             Paragraph(f"<font color='{'#ff3d6a' if r_carieux=='Eleve' else '#1de986'}'><b>{r_carieux}</b></font>", body_style)],
             [Paragraph("<b>Risque Parodontal</b>", body_style),
-             Paragraph(f"<font color='{'#e11d48' if r_paro=='Eleve' else '#16a34a'}'><b>{r_paro}</b></font>", body_style)],
+             Paragraph(f"<font color='{'#ff3d6a' if r_paro=='Eleve' else '#1de986'}'><b>{r_paro}</b></font>", body_style)],
             [Paragraph("<b>Score de Diversite</b>", body_style),
              Paragraph(f"<b>{diversite}/100</b> (optimal > 65)", body_style)],
         ]
         res_table = Table(res_data, colWidths=[90*mm, 90*mm])
         res_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,-1), GRAY_BG),
+            ('BACKGROUND', (0,0), (-1,-1), CARD),
             ('TOPPADDING', (0,0), (-1,-1), 5), ('BOTTOMPADDING', (0,0), (-1,-1), 5),
             ('LEFTPADDING', (0,0), (-1,-1), 8),
-            ('LINEBELOW', (0,0), (-1,-2), 0.5, colors.white),
+            ('LINEBELOW', (0,0), (-1,-2), 0.5, SURFACE),
         ]))
         elems.append(res_table)
         elems.append(Spacer(1, 6*mm))
@@ -842,7 +1046,7 @@ def generer_pdf(patient_nom, r_carieux, r_paro, diversite, historique_df, plan, 
         # SCORES SYSTÉMIQUES
         if scores_systemiques:
             elems.append(Paragraph("Scores de Risque Systemique", h1_style))
-            elems.append(HRFlowable(width="100%", thickness=1, color=LIGHT_BLUE))
+            elems.append(HRFlowable(width="100%", thickness=1, color=TEAL))
             elems.append(Paragraph(
                 "Ces scores sont calcules sur la base de correlations publiees dans la litterature scientifique. "
                 "Ils constituent une aide a la decision et ne remplacent pas un avis medical.",
@@ -862,14 +1066,14 @@ def generer_pdf(patient_nom, r_carieux, r_paro, diversite, historique_df, plan, 
                 ])
             sys_table = Table(sys_rows, colWidths=[55*mm, 22*mm, 22*mm, 81*mm])
             sys_table.setStyle(TableStyle([
-                ('BACKGROUND', (0,0), (-1,0), BLUE),
-                ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+                ('BACKGROUND', (0,0), (-1,0), DARK),
+                ('TEXTCOLOR', (0,0), (-1,0), TEAL),
                 ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
                 ('FONTSIZE', (0,0), (-1,-1), 9),
-                ('ROWBACKGROUNDS', (0,1), (-1,-1), [GRAY_BG, colors.white]),
+                ('ROWBACKGROUNDS', (0,1), (-1,-1), [CARD, SURFACE]),
                 ('TOPPADDING', (0,0), (-1,-1), 5), ('BOTTOMPADDING', (0,0), (-1,-1), 5),
                 ('LEFTPADDING', (0,0), (-1,-1), 6),
-                ('GRID', (0,0), (-1,-1), 0.3, colors.HexColor('#e5e7eb')),
+                ('GRID', (0,0), (-1,-1), 0.3, colors.HexColor('#162238')),
             ]))
             elems.append(sys_table)
             elems.append(Spacer(1, 6*mm))
@@ -877,7 +1081,7 @@ def generer_pdf(patient_nom, r_carieux, r_paro, diversite, historique_df, plan, 
         # PLAN D'ACTION
         if plan["priorites"]:
             elems.append(Paragraph("Plan d'Action - Priorites", h1_style))
-            elems.append(HRFlowable(width="100%", thickness=1, color=LIGHT_BLUE))
+            elems.append(HRFlowable(width="100%", thickness=1, color=TEAL))
             for i, p in enumerate(plan["priorites"]):
                 urgence = p["urgence"]
                 badge = "URGENCE ELEVEE" if urgence=="Elevee" else "MODEREE" if urgence=="Moderee" else "ROUTINE"
@@ -888,7 +1092,7 @@ def generer_pdf(patient_nom, r_carieux, r_paro, diversite, historique_df, plan, 
 
         # NUTRITION
         elems.append(Paragraph("Plan Nutritionnel", h1_style))
-        elems.append(HRFlowable(width="100%", thickness=1, color=LIGHT_BLUE))
+        elems.append(HRFlowable(width="100%", thickness=1, color=TEAL))
         if plan["aliments_favoriser"] or plan["aliments_eviter"]:
             max_items = max(len(plan["aliments_favoriser"]), len(plan["aliments_eviter"]))
             nutr_rows = []
@@ -898,11 +1102,11 @@ def generer_pdf(patient_nom, r_carieux, r_paro, diversite, historique_df, plan, 
                 nutr_rows.append([Paragraph(f"+ {fav}", body_style), Paragraph(f"- {evi}", body_style)])
             nutr_table = Table(nutr_rows, colWidths=[90*mm, 90*mm])
             nutr_table.setStyle(TableStyle([
-                ('BACKGROUND', (0,0), (0,-1), colors.HexColor('#f0fdf4')),
-                ('BACKGROUND', (1,0), (1,-1), colors.HexColor('#fff1f2')),
+                ('BACKGROUND', (0,0), (0,-1), colors.HexColor('#0a1a10')),
+                ('BACKGROUND', (1,0), (1,-1), colors.HexColor('#1a0a10')),
                 ('TOPPADDING', (0,0), (-1,-1), 4), ('BOTTOMPADDING', (0,0), (-1,-1), 4),
                 ('LEFTPADDING', (0,0), (-1,-1), 8),
-                ('LINEBELOW', (0,0), (-1,-2), 0.3, colors.white),
+                ('LINEBELOW', (0,0), (-1,-2), 0.3, SURFACE),
             ]))
             elems.append(nutr_table)
 
@@ -910,11 +1114,11 @@ def generer_pdf(patient_nom, r_carieux, r_paro, diversite, historique_df, plan, 
         elems.append(Spacer(1, 8*mm))
         footer_data = [
             [Paragraph("Ce rapport est fourni a titre preventif et informatif. Ne constitue pas un diagnostic medical.", small_style)],
-            [Paragraph("OralBiome - Microbiome Oral Predictif | contact@oralbiome.com", small_style)]
+            [Paragraph("OralBiome - Health Intelligence Platform | contact@oralbiome.com", small_style)]
         ]
         footer_table = Table(footer_data, colWidths=[180*mm])
         footer_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,-1), LIGHT_BLUE),
+            ('BACKGROUND', (0,0), (-1,-1), SURFACE),
             ('TOPPADDING', (0,0), (-1,-1), 4), ('BOTTOMPADDING', (0,0), (-1,-1), 4),
         ]))
         elems.append(footer_table)
@@ -1083,7 +1287,7 @@ def render_dashboard(patients: dict):
     <div class="ob-header">
         {logo_h}
         <h1>📊 Dashboard Cabinet</h1>
-        <p>Vue analytique en temps réel · Alertes · KPIs · Tendances</p>
+        <p>● Vue analytique en temps réel · Alertes · KPIs · Tendances</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1094,7 +1298,7 @@ def render_dashboard(patients: dict):
         <div class="kpi-card">
             <div class="kpi-num kpi-blue">{stats['total']}</div>
             <div class="kpi-lbl">Patients Total</div>
-            <div class="kpi-delta kpi-blue">📂 {stats['total_visites']} visites</div>
+            <div class="kpi-delta kpi-teal">📂 {stats['total_visites']} visites</div>
         </div>""", unsafe_allow_html=True)
     with k2:
         st.markdown(f"""
@@ -1134,34 +1338,34 @@ def render_dashboard(patients: dict):
     def bar(val, max_val, color):
         pct = min(100, val / max_val * 100)
         return f"""<div class="progress-bar-wrap">
-            <div class="progress-bar-fill" style="width:{pct:.0f}%; background:{color};"></div>
+            <div class="progress-bar-fill" style="width:{pct:.0f}%; background:{color}; box-shadow:0 0 8px {color}80;"></div>
         </div>"""
 
     with col_m1:
-        color = "#e11d48" if stats["avg_mutans"] > 3 else "#16a34a"
+        color = "#ff3d6a" if stats["avg_mutans"] > 3 else "#1de986"
         st.markdown(f"""
         <div class="kpi-card">
-            <div style="font-size:0.8rem; color:#6b7280; font-weight:600;">S. MUTANS MOYEN</div>
+            <div style="font-family:'Space Mono',monospace;font-size:0.65rem;color:#7a8fa8;text-transform:uppercase;letter-spacing:0.1em;">S. MUTANS MOYEN</div>
             <div class="kpi-num" style="color:{color};">{stats['avg_mutans']}%</div>
-            <div style="font-size:0.75rem; color:#9ca3af;">Normal &lt; 3%</div>
+            <div style="font-family:'Space Mono',monospace;font-size:0.68rem;color:#3d5068;">Normal &lt; 3%</div>
             {bar(stats["avg_mutans"], 8, color)}
         </div>""", unsafe_allow_html=True)
     with col_m2:
-        color = "#e11d48" if stats["avg_paro"] > 0.5 else "#16a34a"
+        color = "#ff3d6a" if stats["avg_paro"] > 0.5 else "#1de986"
         st.markdown(f"""
         <div class="kpi-card">
-            <div style="font-size:0.8rem; color:#6b7280; font-weight:600;">P. GINGIVALIS MOYEN</div>
+            <div style="font-family:'Space Mono',monospace;font-size:0.65rem;color:#7a8fa8;text-transform:uppercase;letter-spacing:0.1em;">P. GINGIVALIS MOYEN</div>
             <div class="kpi-num" style="color:{color};">{stats['avg_paro']}%</div>
-            <div style="font-size:0.75rem; color:#9ca3af;">Normal &lt; 0.5%</div>
+            <div style="font-family:'Space Mono',monospace;font-size:0.68rem;color:#3d5068;">Normal &lt; 0.5%</div>
             {bar(stats["avg_paro"], 2, color)}
         </div>""", unsafe_allow_html=True)
     with col_m3:
-        color = "#16a34a" if stats["avg_diversite"] >= 65 else "#d97706" if stats["avg_diversite"] >= 50 else "#e11d48"
+        color = "#1de986" if stats["avg_diversite"] >= 65 else "#ffb547" if stats["avg_diversite"] >= 50 else "#ff3d6a"
         st.markdown(f"""
         <div class="kpi-card">
-            <div style="font-size:0.8rem; color:#6b7280; font-weight:600;">DIVERSITÉ MOYENNE</div>
+            <div style="font-family:'Space Mono',monospace;font-size:0.65rem;color:#7a8fa8;text-transform:uppercase;letter-spacing:0.1em;">DIVERSITÉ MOYENNE</div>
             <div class="kpi-num" style="color:{color};">{stats['avg_diversite']}/100</div>
-            <div style="font-size:0.75rem; color:#9ca3af;">Optimal &gt; 65</div>
+            <div style="font-family:'Space Mono',monospace;font-size:0.68rem;color:#3d5068;">Optimal &gt; 65</div>
             {bar(stats["avg_diversite"], 100, color)}
         </div>""", unsafe_allow_html=True)
 
@@ -1326,30 +1530,48 @@ if "patients" not in st.session_state:
 # ÉCRAN DE CHOIX
 # ============================================================
 if st.session_state.mode == "choix":
-    logo_html = logo_img(width=180, style="margin-bottom:10px;")
+    logo_html = logo_img(width=180, style="margin-bottom:10px;filter:brightness(0) invert(1);opacity:0.9;")
     st.markdown(f"""
     <div class="ob-header">
         {logo_html}
-        <h1 style="margin-top:6px;">OralBiome</h1>
-        <p>Microbiome Oral Prédictif — Prévention dentaire et systémique personnalisée par l'IA</p>
+        <h1 style="margin-top:6px;">Oral<span style="color:#00c8b4;">Biome</span></h1>
+        <p>● Microbiome Oral Prédictif — Prévention dentaire et systémique personnalisée par l'IA</p>
     </div>
     """, unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
-        st.markdown("#### 🩺 Praticien")
-        st.markdown("Tableau de bord complet, gestion des dossiers, analyses systémiques et rapports PDF.")
+        st.markdown("""
+        <div class="kpi-card" style="padding:28px 24px;margin-bottom:12px;">
+            <div style="font-size:2rem;margin-bottom:10px;">🩺</div>
+            <div style="font-family:'Syne',sans-serif;font-size:1.2rem;font-weight:700;color:#e8f0fe;margin-bottom:8px;">Praticien</div>
+            <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.85rem;color:#7a8fa8;line-height:1.6;">
+                Tableau de bord complet, gestion des dossiers, analyses systémiques et rapports PDF.
+            </div>
+        </div>""", unsafe_allow_html=True)
         if st.button("Connexion Praticien", use_container_width=True, type="primary"):
             st.session_state.mode = "praticien"; st.rerun()
     with col2:
-        st.markdown("#### 🧑 Patient")
-        st.markdown("Votre rapport personnalisé, plan nutritionnel, risques systémiques et historique.")
+        st.markdown("""
+        <div class="kpi-card" style="padding:28px 24px;margin-bottom:12px;">
+            <div style="font-size:2rem;margin-bottom:10px;">🧑</div>
+            <div style="font-family:'Syne',sans-serif;font-size:1.2rem;font-weight:700;color:#e8f0fe;margin-bottom:8px;">Patient</div>
+            <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.85rem;color:#7a8fa8;line-height:1.6;">
+                Votre rapport personnalisé, plan nutritionnel, risques systémiques et historique.
+            </div>
+        </div>""", unsafe_allow_html=True)
         if st.button("Accès Patient", use_container_width=True):
             st.session_state.mode = "patient"; st.rerun()
     with col3:
-        st.markdown("#### ℹ️ À propos")
-        st.markdown("OralBiome corrèle votre microbiote oral avec vos risques cardiovasculaires, diabète, Alzheimer et plus.")
-        st.markdown("**contact@oralbiome.com**")
+        st.markdown("""
+        <div class="kpi-card" style="padding:28px 24px;margin-bottom:12px;">
+            <div style="font-size:2rem;margin-bottom:10px;">ℹ️</div>
+            <div style="font-family:'Syne',sans-serif;font-size:1.2rem;font-weight:700;color:#e8f0fe;margin-bottom:8px;">À propos</div>
+            <div style="font-family:'IBM Plex Sans',sans-serif;font-size:0.85rem;color:#7a8fa8;line-height:1.6;">
+                OralBiome corrèle votre microbiote oral avec vos risques cardiovasculaires, diabète, Alzheimer et plus.
+            </div>
+            <div style="font-family:'Space Mono',monospace;font-size:0.72rem;color:#00c8b4;margin-top:12px;font-weight:700;">contact@oralbiome.com</div>
+        </div>""", unsafe_allow_html=True)
 
 
 # ============================================================
@@ -1363,8 +1585,11 @@ elif st.session_state.mode == "patient":
             st.markdown("<br>", unsafe_allow_html=True)
             if LOGO_B64:
                 st.markdown(f"<div style='text-align:center;'>{logo_img(width=160)}</div>", unsafe_allow_html=True)
-            st.markdown("<h3 style='text-align:center; color:#1a3a5c; margin-top:10px;'>Espace Patient</h3>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align:center; color:#888;'>Consultez votre rapport personnalisé</p>", unsafe_allow_html=True)
+            st.markdown("""
+            <div style="text-align:center;margin-top:10px;">
+                <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:#e8f0fe;">Espace Patient</div>
+                <div style="font-family:'Space Mono',monospace;font-size:0.68rem;color:#7a8fa8;margin-top:4px;text-transform:uppercase;letter-spacing:0.1em;">Consultez votre rapport personnalisé</div>
+            </div>""", unsafe_allow_html=True)
             st.markdown("---")
             code = st.text_input("Votre code patient", placeholder="Ex: OB-P001")
             if st.button("Accéder à mon dossier", use_container_width=True, type="primary"):
@@ -1394,7 +1619,8 @@ elif st.session_state.mode == "patient":
             )
         st.sidebar.markdown(f"### 👋 {patient['nom'].split()[0]}")
         st.sidebar.markdown(f"Code : `{patient['code_patient']}`")
-        st.sidebar.markdown(f"**{'🔴 En alerte' if en_alerte else '🟢 Équilibré'}**")
+        status_color = "#ff3d6a" if en_alerte else "#1de986"
+        st.sidebar.markdown(f"<span style='color:{status_color};font-weight:700;'>{'🔴 En alerte' if en_alerte else '🟢 Équilibré'}</span>", unsafe_allow_html=True)
         st.sidebar.markdown(f"Prochain contrôle : **{plan['suivi_semaines']} semaines**")
         st.sidebar.markdown("---")
         if st.sidebar.button("Se déconnecter"):
@@ -1406,8 +1632,8 @@ elif st.session_state.mode == "patient":
         st.markdown(f"""
         <div class='patient-header'>
             {logo_h}
-            <h2 style="margin-top:4px;">Bonjour {patient['nom']} !</h2>
-            <p>Rapport microbiome oral personnalisé · {date.today().strftime('%d/%m/%Y')}</p>
+            <h2 style="margin-top:4px;font-family:'Syne',sans-serif;font-weight:800;">Bonjour {patient['nom']} !</h2>
+            <p style="font-family:'Space Mono',monospace;font-size:0.72rem;color:#00c8b4;text-transform:uppercase;letter-spacing:0.08em;">● Rapport microbiome oral personnalisé · {date.today().strftime('%d/%m/%Y')}</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1444,7 +1670,6 @@ elif st.session_state.mode == "patient":
                 score = data["score"]
                 level = data["level"]
                 score_css = "score-high" if level == "high" else "score-med" if level == "med" else "score-low"
-                card_css = "risk-high" if level == "high" else "risk-med" if level == "med" else "risk-low"
                 col_ring, col_content = st.columns([1, 6])
                 with col_ring:
                     st.markdown(f"<div class='score-ring {score_css}'>{score}</div>", unsafe_allow_html=True)
@@ -1452,8 +1677,8 @@ elif st.session_state.mode == "patient":
                     st.markdown(f"""
                     <div class='systemic-card'>
                         <div class='systemic-title'>{data['icon']} {data['label']}</div>
-                        <div style="font-size:0.85rem; color:#4b5563; margin-bottom:8px;">{data['description']}</div>
-                        <div style="font-size:0.75rem; color:#9ca3af; margin-bottom:8px;"><em>Réf : {data['references']}</em></div>
+                        <div style="font-size:0.85rem; color:#7a8fa8; margin-bottom:8px;">{data['description']}</div>
+                        <div style="font-family:'Space Mono',monospace;font-size:0.72rem; color:#3d5068; margin-bottom:8px;"><em>Réf : {data['references']}</em></div>
                     </div>
                     """, unsafe_allow_html=True)
                     with st.expander("Voir les recommandations →"):
@@ -1545,9 +1770,11 @@ elif st.session_state.mode == "praticien":
             st.markdown("<br>", unsafe_allow_html=True)
             if LOGO_B64:
                 st.markdown(f"<div style='text-align:center;'>{logo_img(width=160)}</div>", unsafe_allow_html=True)
-            else:
-                st.markdown("<h2 style='text-align:center; color:#1a3a5c;'>🦷 OralBiome</h2>", unsafe_allow_html=True)
-            st.markdown("<h4 style='text-align:center; color:#64748b;'>Portail Praticien</h4>", unsafe_allow_html=True)
+            st.markdown("""
+            <div style="text-align:center;margin-top:10px;">
+                <div style="font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:#e8f0fe;">Oral<span style="color:#00c8b4;">Biome</span></div>
+                <div style="font-family:'Space Mono',monospace;font-size:0.65rem;color:#7a8fa8;margin-top:4px;text-transform:uppercase;letter-spacing:0.12em;">Portail Praticien</div>
+            </div>""", unsafe_allow_html=True)
             st.markdown("---")
             email = st.text_input("Email Professionnel")
             mdp = st.text_input("Mot de passe", type="password")
@@ -1565,8 +1792,11 @@ elif st.session_state.mode == "praticien":
                 f"<div style='text-align:center;padding:8px 0 4px 0;'>{logo_img(width=140)}</div>",
                 unsafe_allow_html=True
             )
-        else:
-            st.sidebar.markdown("## 🦷 OralBiome")
+        st.sidebar.markdown("""
+        <div style="padding:4px 8px 8px 8px;">
+            <div style="font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:800;color:#e8f0fe;">Oral<span style="color:#00c8b4;">Biome</span></div>
+            <div style="font-family:'Space Mono',monospace;font-size:0.58rem;color:#7a8fa8;letter-spacing:0.1em;text-transform:uppercase;">Health Intelligence</div>
+        </div>""", unsafe_allow_html=True)
         st.sidebar.markdown("---")
         sc1, sc2, sc3 = st.sidebar.columns(3)
         with sc1:
@@ -1694,9 +1924,20 @@ elif st.session_state.mode == "praticien":
                 scores_sys = calculer_score_systemique(s_mutans, p_gingivalis, diversite)
 
                 badge = "🔴 En Alerte" if en_alerte else "🟢 Stable"
-                st.markdown(f"## 🦷 {patient['nom']}  `{patient['id']}`  —  {badge}")
-                st.caption(f"Âge : {patient['age']} ans  ·  {patient['email']}  ·  Code : **{patient.get('code_patient','')}**")
-                st.markdown("---")
+                badge_color = "#ff3d6a" if en_alerte else "#1de986"
+                st.markdown(f"""
+                <div class="ob-header">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+                        <div>
+                            <div style="font-family:'Space Mono',monospace;font-size:0.65rem;color:#00c8b4;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:6px;">● Dossier Patient · {patient['id']}</div>
+                            <h1 style="font-size:1.7rem;margin:0;">🦷 {patient['nom']}</h1>
+                            <p style="font-family:'IBM Plex Sans',sans-serif;color:#7a8fa8;font-size:0.85rem;margin:4px 0 0 0;">Âge : {patient['age']} ans · {patient['email']} · Code : <code>{patient.get('code_patient','')}</code></p>
+                        </div>
+                        <div style="padding-top:8px;">
+                            <span style="background:{badge_color}20;color:{badge_color};font-family:'Syne',sans-serif;font-weight:700;padding:8px 18px;border-radius:24px;font-size:0.9rem;border:1px solid {badge_color}50;">{badge}</span>
+                        </div>
+                    </div>
+                </div>""", unsafe_allow_html=True)
 
                 m1, m2, m3, m4, m5 = st.columns(5)
                 m1.metric("Risque Carieux", r_carieux, delta_color="inverse")
@@ -1775,15 +2016,9 @@ elif st.session_state.mode == "praticien":
                     # SIMULATEUR "ET SI ?" — VERSION MAXIMALE
                     # ══════════════════════════════════════════
                     st.markdown("""
-                    <div style="background:linear-gradient(135deg,#0a1628,#1a3a5c);border-radius:14px;
-                         padding:20px 28px;margin-bottom:20px;">
-                        <h3 style="color:#fff;margin:0;font-family:'DM Serif Display',serif;">
-                            🔬 Simulateur d'Impact Thérapeutique
-                        </h3>
-                        <p style="color:rgba(255,255,255,0.65);margin:6px 0 0 0;font-size:0.9rem;">
-                            Ajustez les biomarqueurs et visualisez l'impact en temps réel sur tous les risques systémiques.
-                            Outil de démonstration patient pendant la consultation.
-                        </p>
+                    <div class="ob-header">
+                        <h1 style="font-size:1.5rem;">🔬 Simulateur d'Impact Thérapeutique</h1>
+                        <p>● Ajustez les biomarqueurs et visualisez l'impact en temps réel sur tous les risques systémiques</p>
                     </div>
                     """, unsafe_allow_html=True)
 
@@ -1841,7 +2076,7 @@ elif st.session_state.mode == "praticien":
                         header_c1.markdown("**Pathologie**")
                         header_c2.markdown("**Actuel**")
                         header_c3.markdown("**Simulé**")
-                        st.markdown("<hr style='margin:4px 0 10px 0;border-color:#e5e7eb;'>", unsafe_allow_html=True)
+                        st.markdown("<hr style='margin:4px 0 10px 0;border-color:rgba(255,255,255,0.06);'>", unsafe_allow_html=True)
 
                         total_gain = 0
                         for key, act in scores_actuels.items():
@@ -1851,24 +2086,24 @@ elif st.session_state.mode == "praticien":
 
                             col_name, col_act, col_sim = st.columns([2, 1, 1])
 
-                            act_color = "#e11d48" if act["level"]=="high" else "#d97706" if act["level"]=="med" else "#16a34a"
-                            sim_color = "#e11d48" if sim["level"]=="high" else "#d97706" if sim["level"]=="med" else "#16a34a"
+                            act_color = "#ff3d6a" if act["level"]=="high" else "#ffb547" if act["level"]=="med" else "#1de986"
+                            sim_color = "#ff3d6a" if sim["level"]=="high" else "#ffb547" if sim["level"]=="med" else "#1de986"
                             arrow = "↓" if gain > 0 else "↑" if gain < 0 else "→"
-                            arrow_color = "#16a34a" if gain > 0 else "#e11d48" if gain < 0 else "#6b7280"
+                            arrow_color = "#1de986" if gain > 0 else "#ff3d6a" if gain < 0 else "#7a8fa8"
 
                             col_name.markdown(f"{act['icon']} **{act['label']}**")
                             col_act.markdown(
-                                f"<span style='color:{act_color};font-weight:700;font-size:1.1rem;'>{act['score']}</span>/100",
+                                f"<span style='color:{act_color};font-family:Syne,sans-serif;font-weight:700;font-size:1.1rem;'>{act['score']}</span>/100",
                                 unsafe_allow_html=True
                             )
                             col_sim.markdown(
-                                f"<span style='color:{sim_color};font-weight:700;font-size:1.1rem;'>{sim['score']}</span>"
+                                f"<span style='color:{sim_color};font-family:Syne,sans-serif;font-weight:700;font-size:1.1rem;'>{sim['score']}</span>"
                                 f"<span style='color:{arrow_color};font-weight:600;font-size:0.9rem;margin-left:6px;'>"
                                 f"{arrow} {abs(gain):+.0f}</span>",
                                 unsafe_allow_html=True
                             )
 
-                        st.markdown("<hr style='margin:10px 0;border-color:#e5e7eb;'>", unsafe_allow_html=True)
+                        st.markdown("<hr style='margin:10px 0;border-color:rgba(255,255,255,0.06);'>", unsafe_allow_html=True)
 
                         # Score global
                         avg_act = sum(s["score"] for s in scores_actuels.values()) / len(scores_actuels)
@@ -1876,24 +2111,26 @@ elif st.session_state.mode == "praticien":
                         gain_global = avg_act - avg_sim
                         gain_pct    = round(gain_global / avg_act * 100) if avg_act > 0 else 0
 
-                        g_color = "#16a34a" if gain_global > 0 else "#e11d48" if gain_global < 0 else "#6b7280"
+                        g_color = "#1de986" if gain_global > 0 else "#ff3d6a" if gain_global < 0 else "#7a8fa8"
                         st.markdown(f"""
-                        <div style="background:linear-gradient(135deg,{g_color}15,{g_color}08);
-                             border:1.5px solid {g_color}40;border-radius:12px;padding:16px 20px;
-                             display:flex;justify-content:space-between;align-items:center;">
+                        <div style="background:var(--bg-card);
+                             border:1.5px solid {g_color}40; border-top:2px solid {g_color};
+                             border-radius:14px;padding:16px 20px;
+                             display:flex;justify-content:space-between;align-items:center;
+                             box-shadow:0 0 20px {g_color}15;">
                             <div>
-                                <div style="font-size:0.8rem;color:#6b7280;font-weight:600;text-transform:uppercase;">
+                                <div style="font-family:'Space Mono',monospace;font-size:0.63rem;color:#7a8fa8;text-transform:uppercase;letter-spacing:0.1em;">
                                     Réduction Risque Global Estimée
                                 </div>
-                                <div style="font-family:'DM Serif Display',serif;font-size:2rem;color:{g_color};">
+                                <div style="font-family:'Syne',sans-serif;font-size:2.2rem;color:{g_color};font-weight:800;">
                                     {"↓" if gain_global>0 else "↑"} {abs(gain_pct)}%
                                 </div>
                             </div>
                             <div style="text-align:right;">
-                                <div style="font-size:0.85rem;color:#374151;">
+                                <div style="font-size:0.85rem;color:#e8f0fe;">
                                     Score moyen : <b>{avg_act:.0f}</b> → <b>{avg_sim:.0f}</b>
                                 </div>
-                                <div style="font-size:0.8rem;color:#9ca3af;margin-top:4px;">
+                                <div style="font-family:'Space Mono',monospace;font-size:0.72rem;color:#3d5068;margin-top:4px;">
                                     Sur {mois_projection} mois avec le protocole sélectionné
                                 </div>
                             </div>
