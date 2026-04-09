@@ -1326,12 +1326,17 @@ if "patients" not in st.session_state:
 # ÉCRAN DE CHOIX
 # ============================================================
 if st.session_state.mode == "choix":
-    logo_html = logo_img(width=180, style="margin-bottom:10px;")
+    # On ajoute un fond blanc propre avec des bords arrondis au logo
+    logo_html = logo_img(width=120, style="background: white; padding: 12px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);")
+    
+    # On utilise 'display: flex' pour aligner le logo et le texte horizontalement
     st.markdown(f"""
-    <div class="ob-header">
-        {logo_html}
-        <h1 style="margin-top:6px;">OralBiome</h1>
-        <p>Microbiome Oral Prédictif — Prévention dentaire et systémique personnalisée par l'IA</p>
+    <div class="ob-header" style="display: flex; align-items: center; gap: 24px;">
+        <div>{logo_html}</div>
+        <div>
+            <h1 style="margin: 0;">OralBiome</h1>
+            <p style="margin: 4px 0 0 0; color: rgba(255,255,255,0.8);">Microbiome Oral Prédictif — Prévention dentaire et systémique personnalisée par l'IA</p>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
