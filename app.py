@@ -664,6 +664,14 @@ def render_photo_analysis(result: dict):
 # ============================================================
 # MOTEUR DE RECOMMANDATIONS (inchangé + amélioré)
 # ============================================================
+def get_anamnes(patient_nom):
+    return st.session_state.anamnes.get(patient_nom, {})
+
+def save_anamnes(patient_nom, data):
+    from datetime import datetime
+    data["completed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    st.session_state.anamnes[patient_nom] = data
+
 def generer_recommandations(s_mutans, p_gingivalis, diversite):
     plan = {
         "priorites": [], "aliments_favoriser": [], "aliments_eviter": [],
@@ -1321,6 +1329,8 @@ for key, val in [
 if "patients" not in st.session_state:
     st.session_state.patients = donnees_initiales()
 
+if "anamnes" not in st.session_state:
+    st.session_state.anamnes = {}  # {"Jean Dupont": {...données...}}
 
 # ============================================================
 # ÉCRAN DE CHOIX — VERSION PREMIUM
@@ -1558,12 +1568,11 @@ elif st.session_state.mode == "patient":
         c3.metric("Diversité Microbienne", f"{diversite}/100")
         st.markdown("---")
 
-        tp1, tp2, tp3, tp4, tp5, tp6 = st.tabs([
+tp1, tp2, tp3, tp4, tp5, tp6, tp7 = st.tabs([
             "📊 Mon Profil", "🧬 Risques Systémiques", "📸 Analyse Photo",
-            "🚨 Mes Actions", "🥗 Nutrition & Probiotiques", "📥 Rapport PDF"
+            "🚨 Mes Actions", "🥗 Nutrition & Probiotiques", "📋 Mon Anamnèse", "📥 Rapport PDF"
         ])
-
-        with tp1:
+with tp1:
             st.header("📊 Mon Profil Bactérien")
             if en_alerte:
                 st.warning(f"**{plan['profil_label']}** — {plan['profil_description']}")
@@ -1604,8 +1613,8 @@ elif st.session_state.mode == "patient":
 
             st.info("⚕️ Ces scores sont des estimations basées sur des corrélations épidémiologiques publiées. Ils ne constituent pas un diagnostic médical. Consultez votre médecin pour tout suivi.")
 
-        with tp3:
-            st.header("📸 Analyse Photo de la Cavité Buccale")
+                     with tp3:
+             st.header("📸 Analyse Photo de la Cavité Buccale")
             st.markdown("Uploadez une photo de votre bouche (gencives, dents, langue). L'IA détecte les signes visuels d'inflammation, tartre, lésions et anomalies.")
             st.caption("📌 Conseils : bonne lumière, bouche ouverte, photo nette. JPEG ou PNG.")
             st.markdown("---")
@@ -1658,8 +1667,112 @@ elif st.session_state.mode == "patient":
                     with c2:
                         st.markdown(f"**Bénéfice :** {prob['benefice']}")
                         st.markdown(f"**Produits :** `{prob['marques']}`")
+with tp6:
+            st.header("📋 Mon Questionnaire de Santé")
+            st.markdown("Ces informations permettent à votre praticien d'affiner votre analyse.")
 
-        with tp6:
+            anamnes = get_anamnes(st.session_state.patient_connecte)
+
+            if anamnes.get("completed_at"):
+                st.success(f"✅ Questionnaire complété le {anamnes['completed_at'][:10]}")
+            else:
+                st.warning("⚠️ Questionnaire non encore rempli — vos recommandations seront plus précises une fois complété.")
+
+            with st.form("form_anamnes_patient"):
+
+                st.markdown("### 🏥 Antécédents Médicaux")
+                a1, a2, a3 = st.columns(3)
+                with a1:
+                    diabete      = st.checkbox("Diabète",       value=bool(anamnes.get("diabete", 0)))
+                    hypertension = st.checkbox("Hypertension",  value=bool(anamnes.get("hypertension", 0)))
+                with a2:
+                    maladie_cardio = st.checkbox("Maladie cardiovasculaire", value=bool(anamnes.get("maladie_cardio", 0)))
+                    osteoporose    = st.checkbox("Ostéoporose",              value=bool(anamnes.get("osteoporose", 0)))
+                with a3:
+                    cancer = st.checkbox("Cancer (actuel ou passé)", value=bool(anamnes.get("cancer", 0)))
+                autre_antecedent = st.text_input("Autre condition médicale",
+                    value=anamnes.get("autre_antecedent", ""),
+                    placeholder="Ex: hypothyroïdie, asthme...")
+
+                st.markdown("---")
+                st.markdown("### 💊 Médicaments")
+                prend_medicaments = st.checkbox("Je prends actuellement des médicaments",
+                    value=bool(anamnes.get("prend_medicaments", 0)))
+                liste_medicaments = ""
+                antibiotiques_recents = False
+                if prend_medicaments:
+                    liste_medicaments = st.text_area("Liste des médicaments",
+                        value=anamnes.get("liste_medicaments", ""),
+                        placeholder="Ex: Metformine 500mg, Amlodipine 5mg...", height=80)
+                    antibiotiques_recents = st.checkbox("J'ai pris des antibiotiques dans les 3 derniers mois",
+                        value=bool(anamnes.get("antibiotiques_recents", 0)))
+
+                st.markdown("---")
+                st.markdown("### 🌿 Habitudes de Vie")
+                h1, h2 = st.columns(2)
+                with h1:
+                    fumeur = st.selectbox("Tabac",
+                        ["non", "occasionnel", "regulier"],
+                        index=["non","occasionnel","regulier"].index(anamnes.get("fumeur","non")),
+                        format_func=lambda x: {"non":"🚭 Non-fumeur","occasionnel":"🚬 Occasionnel","regulier":"🚬 Fumeur régulier"}[x])
+                    alcool = st.selectbox("Consommation d'alcool",
+                        ["non", "modere", "eleve"],
+                        index=["non","modere","eleve"].index(anamnes.get("alcool","non")),
+                        format_func=lambda x: {"non":"✅ Pas ou rarement","modere":"🍷 Modérée","eleve":"⚠️ Élevée"}[x])
+                with h2:
+                    alimentation_type = st.selectbox("Type d'alimentation",
+                        ["omnivore","vegetarien","vegan","paleo","mediterraneen","autre"],
+                        index=["omnivore","vegetarien","vegan","paleo","mediterraneen","autre"].index(
+                            anamnes.get("alimentation_type","omnivore")),
+                        format_func=lambda x: {"omnivore":"🍖 Omnivore","vegetarien":"🥗 Végétarien",
+                            "vegan":"🌱 Vegan","paleo":"🥩 Paléo","mediterraneen":"🫒 Méditerranéen","autre":"🍽️ Autre"}[x])
+                    sucres_eleves = st.checkbox("Consommation élevée de sucres",
+                        value=bool(anamnes.get("sucres_eleves", 0)))
+
+                st.markdown("---")
+                st.markdown("### 🦷 Hygiène Buccale")
+                hb1, hb2, hb3 = st.columns(3)
+                with hb1:
+                    brosse_dents_freq = st.selectbox("Fréquence de brossage",
+                        ["1x/jour","2x/jour","3x/jour","moins d'1x/jour"],
+                        index=["1x/jour","2x/jour","3x/jour","moins d'1x/jour"].index(
+                            anamnes.get("brosse_dents_freq","2x/jour")))
+                with hb2:
+                    fil_dentaire = st.checkbox("Fil dentaire quotidien", value=bool(anamnes.get("fil_dentaire", 0)))
+                with hb3:
+                    bain_bouche = st.checkbox("Bain de bouche régulier", value=bool(anamnes.get("bain_bouche", 0)))
+
+                st.markdown("---")
+                st.markdown("### 🔍 Symptômes Actuels")
+                s1, s2, s3, s4 = st.columns(4)
+                with s1: saignement  = st.checkbox("🩸 Saignement gencives",    value=bool(anamnes.get("saignement_gencives", 0)))
+                with s2: douleur     = st.checkbox("😣 Douleur dentaire",        value=bool(anamnes.get("douleur_dentaire", 0)))
+                with s3: sensibilite = st.checkbox("❄️ Sensibilité chaud/froid", value=bool(anamnes.get("sensibilite", 0)))
+                with s4: mauvaise_hal= st.checkbox("💨 Mauvaise haleine",        value=bool(anamnes.get("mauvaise_haleine", 0)))
+
+                st.markdown("<br>", unsafe_allow_html=True)
+                submitted = st.form_submit_button("💾 Sauvegarder mon questionnaire",
+                    use_container_width=True, type="primary")
+
+                if submitted:
+                    save_anamnes(st.session_state.patient_connecte, {
+                        "diabete": int(diabete), "hypertension": int(hypertension),
+                        "maladie_cardio": int(maladie_cardio), "osteoporose": int(osteoporose),
+                        "cancer": int(cancer), "autre_antecedent": autre_antecedent,
+                        "prend_medicaments": int(prend_medicaments),
+                        "liste_medicaments": liste_medicaments,
+                        "antibiotiques_recents": int(antibiotiques_recents),
+                        "fumeur": fumeur, "alcool": alcool,
+                        "brosse_dents_freq": brosse_dents_freq,
+                        "fil_dentaire": int(fil_dentaire), "bain_bouche": int(bain_bouche),
+                        "sucres_eleves": int(sucres_eleves), "alimentation_type": alimentation_type,
+                        "saignement_gencives": int(saignement), "douleur_dentaire": int(douleur),
+                        "sensibilite": int(sensibilite), "mauvaise_haleine": int(mauvaise_hal)
+                    })
+                    st.success("✅ Questionnaire sauvegardé ! Votre praticien y a maintenant accès.")
+                    st.rerun()
+
+        with tp7:
             st.header("📥 Rapport PDF Complet")
             st.markdown("Votre rapport inclut votre profil bactérien, les **risques systémiques corrélés**, votre plan nutritionnel et votre protocole d'hygiène.")
             if st.button("Générer mon rapport PDF", type="primary", use_container_width=True):
@@ -1855,6 +1968,34 @@ elif st.session_state.mode == "praticien":
 
                 st.info(f"Code patient : **{patient.get('code_patient', '')}** — À communiquer au patient pour son accès portail.")
                 st.markdown("---")
+                anamnes_p = get_anamnes(st.session_state.patient_sel)
+                if anamnes_p.get("completed_at"):
+                    with st.expander(f"📋 Anamnèse patient — complétée le {anamnes_p['completed_at'][:10]}"):
+                        ac1, ac2, ac3 = st.columns(3)
+                        with ac1:
+                            st.markdown("**🏥 Antécédents**")
+                            if anamnes_p.get("diabete"):        st.markdown("- 🩸 Diabète")
+                            if anamnes_p.get("hypertension"):   st.markdown("- ❤️ Hypertension")
+                            if anamnes_p.get("maladie_cardio"): st.markdown("- 🫀 Maladie cardiovasculaire")
+                            if anamnes_p.get("osteoporose"):    st.markdown("- 🦴 Ostéoporose")
+                            if anamnes_p.get("cancer"):         st.markdown("- ⚠️ Cancer")
+                            if anamnes_p.get("autre_antecedent"): st.markdown(f"- 📌 {anamnes_p['autre_antecedent']}")
+                        with ac2:
+                            st.markdown("**🌿 Habitudes**")
+                            st.markdown(f"- Tabac : `{anamnes_p.get('fumeur','?')}`")
+                            st.markdown(f"- Alcool : `{anamnes_p.get('alcool','?')}`")
+                            st.markdown(f"- Alimentation : `{anamnes_p.get('alimentation_type','?')}`")
+                            st.markdown(f"- Brossage : `{anamnes_p.get('brosse_dents_freq','?')}`")
+                            if anamnes_p.get("sucres_eleves"): st.markdown("- ⚠️ Sucres élevés")
+                        with ac3:
+                            st.markdown("**🔍 Symptômes**")
+                            if anamnes_p.get("saignement_gencives"): st.markdown("- 🩸 Saignement gencives")
+                            if anamnes_p.get("douleur_dentaire"):    st.markdown("- 😣 Douleur dentaire")
+                            if anamnes_p.get("sensibilite"):         st.markdown("- ❄️ Sensibilité")
+                            if anamnes_p.get("mauvaise_haleine"):    st.markdown("- 💨 Mauvaise haleine")
+                            if anamnes_p.get("antibiotiques_recents"): st.markdown("- 💊 Antibiotiques récents")
+                else:
+                    st.caption("📋 Anamnèse non encore remplie par le patient.")
 
                 tab1, tab2, tab3, tab4, tab5 = st.tabs([
                     "🧬 Risques Systémiques", "🚨 Plan d'Action", "🔬 Simulateur", "📸 Analyse Photo", "📂 Historique & PDF"
