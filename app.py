@@ -291,9 +291,48 @@ SYSTEMIC_CORRELATIONS = {
         "actions_low":["Hygiène bucco-dentaire régulière","Brossage de la langue quotidien"]
     }
 }
+# ============================================================
+# VISUALISATION : JUMEAU NUMÉRIQUE
+# ============================================================
+def render_digital_twin(p_gingivalis, s_mutans, diversite):
+    """Génère un jumeau numérique visuel basé sur les biomarqueurs"""
+    
+    # 1. Logique de couleur de la gencive (basée sur P. gingivalis -> Inflammation)
+    # Plus P. gingivalis est haut, plus le rose devient rouge vif/sombre
+    redness = min(255, int(p_gingivalis * 100 + 150)) if p_gingivalis > 0.5 else 180
+    gum_color = f"rgb({redness}, 100, 120)"
+    
+    # 2. Logique du biofilm/plaque (basé sur S. mutans)
+    # Plus S. mutans est haut, plus une couche jaune apparaît sur la dent
+    plaque_opacity = min(0.8, s_mutans / 10)
+    
+    # 3. Logique de la structure osseuse/attache (Santé globale)
+    # La récession gingivale simulée par la position verticale de la gencive
+    recession = min(15, int(p_gingivalis * 5)) 
 
-def calculer_score_systemique(s_mutans, p_gingivalis, diversite):
-    score_gingivalis = min(100, (p_gingivalis / 2.0) * 100)
+    # Construction du SVG
+    svg_html = f"""
+    <div style="display: flex; justify-content: center; background: #f8fafc; padding: 40px; border-radius: 20px; border: 1px solid #e2e8f0;">
+        <svg width="200" height="250" viewBox="0 0 200 250" xmlns="http://www.w3.org/2000/svg">
+            <path d="M50,50 Q50,20 100,20 Q150,20 150,50 L150,150 Q150,180 100,180 Q50,180 50,150 Z" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+            
+            <path d="M55,60 Q55,40 100,40 Q145,40 145,60 L145,140 Q145,160 100,160 Q55,160 55,140 Z" 
+                  fill="#fbbf24" fill-opacity="{plaque_opacity}">
+                <animate attributeName="fill-opacity" values="0.1;{plaque_opacity};0.1" dur="3s" repeatCount="indefinite" />
+            </path>
+
+            <path d="M20,{150+recession} Q20,{120+recession} 100,{120+recession} Q180,{120+recession} 180,{150+recession} L180,230 Q180,250 100,250 Q20,250 20,230 Z" 
+                  fill="{gum_color}" transition="all 0.5s ease">
+            </path>
+            
+            <ellipse cx="80" cy="50" rx="10" ry="20" fill="white" fill-opacity="{diversite/200}" />
+        </svg>
+    </div>
+    """
+    st.markdown(svg_html, unsafe_allow_html=True)
+
+    def calculer_score_systemique(s_mutans, p_gingivalis, diversite):
+     score_gingivalis = min(100, (p_gingivalis / 2.0) * 100)
     score_mutans = min(100, (s_mutans / 8.0) * 100)
     score_diversity_risk = max(0, 100 - diversite)
     score_inflammation = min(100, (score_gingivalis * 0.6 + score_diversity_risk * 0.4))
@@ -709,6 +748,9 @@ if "onboarding_step" not in st.session_state:
 
 if "rgpd_accepted" not in st.session_state:
     st.session_state.rgpd_accepted = False
+if "lang" not in st.session_state:        st.session_state.lang = "fr"
+if "dark_mode" not in st.session_state:   st.session_state.dark_mode = False
+if "notifs_read" not in st.session_state: st.session_state.notifs_read = set()
 # ============================================================
 # ÉCRAN DE CHOIX
 # ============================================================
@@ -1369,7 +1411,9 @@ elif st.session_state.mode == "praticien":
             st.session_state.connecte = False; st.rerun()
         if st.sidebar.button("Retour accueil", use_container_width=True):
             st.session_state.connecte = False; st.session_state.mode = "choix"; st.rerun()
-
+            render_lang_selector("sidebar")
+            render_dark_mode_toggle("sidebar")
+            render_notifications(st.session_state.patients)
         # ── VUE DASHBOARD ─────────────────────────────────────
         if st.session_state.vue == "dashboard":
             render_dashboard(st.session_state.patients)
@@ -1508,183 +1552,119 @@ elif st.session_state.mode == "praticien":
                 else:
                     st.caption("📋 Anamnèse non encore remplie par le patient.")
 
-                tab1, tab2, tab3, tab4, tab5 = st.tabs([
-                    "🧬 Risques Systémiques","🚨 Plan d'Action","🔬 Simulateur","📸 Analyse Photo","📂 Historique & PDF"
-                ])
+                # ── LES ONGLETS (TABS) DU DOSSIER PATIENT ──
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "🧬 Risques Systémiques", "🚨 Plan d'Action", "🔬 Simulateur", "📸 Analyse Photo", "📂 Historique & PDF"
+])
 
-                with tab1:
-                    st.header("🧬 Corrélations Microbiome → Risques Systémiques")
-                    st.caption("Scores calculés selon les pondérations de la littérature scientifique peer-reviewed.")
-                    st.markdown("#### 🌍 Benchmark Diversité — Population NHANES (n=8 237)")
-                    render_diversity_benchmark(diversite, age=patient.get("age"), context="praticien")
-                    st.markdown("---")
-                    rows = []
-                    for key, data in scores_sys.items():
-                        level_label = "🔴 Élevé" if data["level"]=="high" else "🟡 Modéré" if data["level"]=="med" else "🟢 Faible"
-                        rows.append({"Pathologie":f"{data['icon']} {data['label']}","Score":data["score"],"Niveau":level_label,"Action prioritaire":data["actions"][0] if data["actions"] else "-"})
-                    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-                    st.markdown("---")
-                    for key, data in scores_sys.items():
-                        if data["level"] == "high":
-                            col1, col2 = st.columns([1,6])
-                            with col1:
-                                st.markdown(f"<div class='score-ring score-high'>{data['score']}</div>", unsafe_allow_html=True)
-                            with col2:
-                                st.markdown(f"**{data['icon']} {data['label']}**")
-                                st.markdown(f"*{data['description']}*")
-                                with st.expander("Protocole clinique recommandé"):
-                                    for action in data["actions"]: st.markdown(f"- {action}")
-                                    st.caption(f"Références : {data['references']}")
-                            st.markdown("")
+# ONGLET 1 : RISQUES SYSTÉMIQUES
+with tab1:
+    st.header("🧬 Corrélations Microbiome → Risques Systémiques")
+    st.caption("Scores calculés selon les pondérations de la littérature scientifique.")
+    render_diversity_benchmark(diversite, age=patient.get("age"), context="praticien")
+    
+    rows = []
+    for key, data in scores_sys.items():
+        level_label = "🔴 Élevé" if data["level"]=="high" else "🟡 Modéré" if data["level"]=="med" else "🟢 Faible"
+        rows.append({"Pathologie": f"{data['icon']} {data['label']}", "Score": data["score"], "Niveau": level_label, "Action prioritaire": data["actions"][0]})
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
-                with tab2:
-                    st.header("Plan d'Action & Recommandations")
-                    for i, p in enumerate(plan["priorites"]):
-                        urg = p["urgence"]
-                        badge_u = "URGENT" if urg=="Elevee" else "MODÉRÉ" if urg=="Moderee" else "ROUTINE"
-                        css = "reco-red" if urg=="Elevee" else "reco-orange" if urg=="Moderee" else "reco-green"
-                        st.markdown(f"#### {p['icone']} Priorité {i+1} — {p['titre']} `{badge_u}`")
-                        st.markdown(f"<div class='reco-card {css}'><em>{p['explication']}</em></div>", unsafe_allow_html=True)
-                        for action in p["actions"]: st.markdown(f"- {action}")
-                        st.markdown("---")
+# ONGLET 2 : PLAN D'ACTION
+with tab2:
+    st.header("Plan d'Action & Recommandations")
+    for i, p in enumerate(plan["priorites"]):
+        urg = p["urgence"]
+        badge_u = "URGENT" if urg=="Elevee" else "MODÉRÉ" if urg=="Moderee" else "ROUTINE"
+        css = "reco-red" if urg=="Elevee" else "reco-orange" if urg=="Moderee" else "reco-green"
+        st.markdown(f"#### {p['icone']} Priorité {i+1} — {p['titre']} `{badge_u}`")
+        st.markdown(f"<div class='reco-card {css}'><em>{p['explication']}</em></div>", unsafe_allow_html=True)
+        for action in p["actions"]: 
+            st.markdown(f"- {action}")
+        st.markdown("---")
 
-                with tab3:
-                    st.markdown("""
-                    <div style="background:linear-gradient(135deg,#0a1628,#1a3a5c);border-radius:14px;padding:20px 28px;margin-bottom:20px;">
-                        <h3 style="color:#fff;margin:0;font-family:'DM Serif Display',serif;">🔬 Simulateur d'Impact Thérapeutique</h3>
-                        <p style="color:rgba(255,255,255,0.65);margin:6px 0 0 0;font-size:0.9rem;">Ajustez les biomarqueurs et visualisez l'impact en temps réel.</p>
-                    </div>""", unsafe_allow_html=True)
+# ONGLET 3 : LE JUMEAU NUMÉRIQUE (SIMULATEUR)
+with tab3:
+    st.markdown("""
+    <div style="background:linear-gradient(135deg,#0a1628,#1a3a5c);border-radius:14px;padding:20px 28px;margin-bottom:20px;">
+        <h3 style="color:#fff;margin:0;font-family:'DM Serif Display',serif;">🔬 Jumeau Numérique & Simulation Thérapeutique</h3>
+    </div>""", unsafe_allow_html=True)
+    
+    col_sim, col_viz = st.columns([1, 1])
+    
+    with col_sim:
+        st.write("🔧 **Paramètres microbiens**")
+        sim_mutans = st.slider("Taux de S. mutans (%)", 0.0, 10.0, float(s_mutans), key="slider_mutans")
+        sim_paro = st.slider("Taux de P. gingivalis (%)", 0.0, 3.0, float(p_gingivalis), key="slider_paro")
+        sim_div = st.slider("Indice de Diversité", 0, 100, int(diversite), key="slider_div")
+        st.info("💡 **Observation :** Ajustez les taux pour visualiser l'impact sur les tissus.")
 
-                    col_sliders, col_results = st.columns([1,2])
-                    with col_sliders:
-                        st.markdown("#### ⚙️ Ajuster les biomarqueurs")
-                        sim_mutans = st.slider("S. mutans (%)", 0.0, 10.0, float(s_mutans), step=0.1)
-                        sim_paro   = st.slider("P. gingivalis (%)", 0.0, 3.0, float(p_gingivalis), step=0.1)
-                        sim_div    = st.slider("Diversité microbienne", 0, 100, int(diversite), step=1)
-                        st.markdown("---")
-                        st.markdown("#### 📅 Projection dans le temps")
-                        mois_projection = st.select_slider("Horizon", options=[1,2,3,6,12], value=3, format_func=lambda x: f"{x} mois")
-                        st.markdown("---")
-                        st.markdown("#### 💊 Protocole simulé")
-                        with_probio  = st.checkbox("Probiotiques oraux", value=True)
-                        with_detartr = st.checkbox("Détartrage / surfaçage", value=False)
-                        with_nutri   = st.checkbox("Plan nutritionnel suivi", value=False)
-                        traj_boost = 1.0 + (0.25 if with_probio else 0) + (0.40 if with_detartr else 0) + (0.20 if with_nutri else 0)
+    with col_viz:
+        st.write("🦷 **Rendu Biologique Virtuel**")
+        # Appel de ta fonction SVG
+        render_digital_twin(sim_paro, sim_mutans, sim_div)
+        
+        if sim_paro > 1.5:
+            st.error("⚠️ État : Inflammation sévère détectée")
+        elif sim_mutans > 5.0:
+            st.warning("⚠️ État : Biofilm cariogène actif")
+        else:
+            st.success("✅ État : Tissus sains et équilibrés")
 
-                    with col_results:
-                        scores_actuels = calculer_score_systemique(s_mutans, p_gingivalis, diversite)
-                        scores_simules = calculer_score_systemique(sim_mutans, sim_paro, sim_div)
-                        st.markdown("#### 📊 Comparaison Avant → Après Traitement")
-                        h1, h2, h3 = st.columns([2,1,1])
-                        h1.markdown("**Pathologie**"); h2.markdown("**Actuel**"); h3.markdown("**Simulé**")
-                        st.markdown("<hr style='margin:4px 0 10px 0;border-color:#e5e7eb;'>", unsafe_allow_html=True)
-                        for key, act in scores_actuels.items():
-                            sim = scores_simules[key]; gain = act["score"]-sim["score"]
-                            cn, ca, cs = st.columns([2,1,1])
-                            act_c = "#e11d48" if act["level"]=="high" else "#d97706" if act["level"]=="med" else "#16a34a"
-                            sim_c = "#e11d48" if sim["level"]=="high" else "#d97706" if sim["level"]=="med" else "#16a34a"
-                            arrow = "↓" if gain>0 else "↑" if gain<0 else "→"
-                            arrow_c = "#16a34a" if gain>0 else "#e11d48" if gain<0 else "#6b7280"
-                            cn.markdown(f"{act['icon']} **{act['label']}**")
-                            ca.markdown(f"<span style='color:{act_c};font-weight:700;font-size:1.1rem;'>{act['score']}</span>/100", unsafe_allow_html=True)
-                            cs.markdown(f"<span style='color:{sim_c};font-weight:700;font-size:1.1rem;'>{sim['score']}</span><span style='color:{arrow_c};margin-left:6px;'>{arrow} {abs(gain):+.0f}</span>", unsafe_allow_html=True)
-                        st.markdown("<hr style='margin:10px 0;border-color:#e5e7eb;'>", unsafe_allow_html=True)
-                        avg_act = sum(s["score"] for s in scores_actuels.values())/len(scores_actuels)
-                        avg_sim = sum(s["score"] for s in scores_simules.values())/len(scores_simules)
-                        gain_global = avg_act - avg_sim
-                        gain_pct = round(gain_global/avg_act*100) if avg_act>0 else 0
-                        g_c = "#16a34a" if gain_global>0 else "#e11d48" if gain_global<0 else "#6b7280"
-                        st.markdown(f"""
-                        <div style="background:linear-gradient(135deg,{g_c}15,{g_c}08);border:1.5px solid {g_c}40;border-radius:12px;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
-                            <div><div style="font-size:0.8rem;color:#6b7280;font-weight:600;text-transform:uppercase;">Réduction Risque Global Estimée</div>
-                            <div style="font-family:'DM Serif Display',serif;font-size:2rem;color:{g_c};">{"↓" if gain_global>0 else "↑"} {abs(gain_pct)}%</div></div>
-                            <div style="text-align:right;"><div style="font-size:0.85rem;color:#374151;">Score moyen : <b>{avg_act:.0f}</b> → <b>{avg_sim:.0f}</b></div>
-                            <div style="font-size:0.8rem;color:#9ca3af;margin-top:4px;">Sur {mois_projection} mois avec le protocole sélectionné</div></div>
-                        </div>""", unsafe_allow_html=True)
-                        st.markdown("<br>", unsafe_allow_html=True)
-                        st.markdown(f"#### 📈 Projection sur {mois_projection} mois")
-                        projection_data = {}
-                        for key, act in scores_actuels.items():
-                            cible=scores_simules[key]["score"]; depart=act["score"]; serie=[]
-                            for m in range(mois_projection+1):
-                                prog = min(1.0,(m/mois_projection)**(1/traj_boost)) if mois_projection>0 else 1.0
-                                serie.append(round(depart+(cible-depart)*prog,1))
-                            projection_data[act["label"][:18]] = serie
-                        st.line_chart(pd.DataFrame(projection_data, index=[f"M{m}" for m in range(mois_projection+1)]), height=220)
-                        st.markdown("<br>", unsafe_allow_html=True)
-                        if gain_pct >= 20: st.success(f"✅ Impact thérapeutique significatif — réduction risque de **{gain_pct}%** en {mois_projection} mois.")
-                        elif gain_pct >= 5: st.info(f"📉 Impact modéré — amélioration estimée de **{gain_pct}%** en {mois_projection} mois.")
-                        elif gain_pct < 0: st.warning("⚠️ Ce scénario représente une dégradation.")
-                        else: st.info("Ajustez les sliders pour visualiser l'impact d'un traitement.")
-                        if sim_mutans!=s_mutans or sim_paro!=p_gingivalis or sim_div!=diversite:
-                            st.markdown("---")
-                            st.markdown("**Paramètres simulés vs actuels :**")
-                            dc1,dc2,dc3 = st.columns(3)
-                            dc1.metric("S. mutans", f"{sim_mutans}%", f"{sim_mutans-s_mutans:+.1f}%", delta_color="inverse")
-                            dc2.metric("P. gingivalis", f"{sim_paro}%", f"{sim_paro-p_gingivalis:+.1f}%", delta_color="inverse")
-                            dc3.metric("Diversité", f"{sim_div}/100", f"{sim_div-diversite:+.0f}", delta_color="normal")
+# ONGLET 4 : ANALYSE PHOTO
+with tab4:
+    st.header("📸 Analyse Visuelle de la Cavité Buccale")
+    st.markdown("Uploadez une photo pour une analyse IA complémentaire.")
+    if not ANTHROPIC_API_KEY:
+        st.warning("Configurez `ANTHROPIC_API_KEY` dans `st.secrets` pour activer.")
+    else:
+        uploaded = st.file_uploader("Photo bouche patient", type=["jpg","jpeg","png"])
+        if uploaded:
+            img_bytes = uploaded.read()
+            mime = "image/png" if uploaded.name.endswith(".png") else "image/jpeg"
+            col_img, col_res = st.columns([1,2])
+            with col_img: 
+                st.image(img_bytes, caption="Photo patient", use_container_width=True)
+            with col_res:
+                with st.spinner("Analyse IA en cours..."): 
+                    result = analyser_photo_bouche(img_bytes, mime)
+                    render_photo_analysis(result)
 
-                with tab4:
-                    st.header("📸 Analyse Visuelle de la Cavité Buccale")
-                    st.markdown("Uploadez une photo de la bouche du patient pour une analyse IA complémentaire.")
-                    if not ANTHROPIC_API_KEY:
-                        st.warning("Configurez `ANTHROPIC_API_KEY` dans `st.secrets` pour activer.")
-                    else:
-                        uploaded = st.file_uploader("Photo bouche patient", type=["jpg","jpeg","png"])
-                        if uploaded:
-                            img_bytes = uploaded.read()
-                            mime = "image/png" if uploaded.name.endswith(".png") else "image/jpeg"
-                            col_img, col_res = st.columns([1,2])
-                            with col_img: st.image(img_bytes, caption="Photo patient", use_container_width=True)
-                            with col_res:
-                                with st.spinner("Analyse IA en cours..."): result = analyser_photo_bouche(img_bytes, mime)
-                                render_photo_analysis(result)
+# ONGLET 5 : HISTORIQUE & PDF
+with tab5:
+    if not patient["historique"].empty:
+        st.dataframe(patient["historique"], use_container_width=True, hide_index=True)
+        if len(patient["historique"]) > 1:
+            df_g = patient["historique"].copy()
+            df_g.index = range(len(df_g))
+            gc1, gc2 = st.columns(2)
+            with gc1: st.line_chart(df_g[["S. mutans (%)","P. gingiv. (%)"]].astype(float))
+            with gc2:
+                div_col = next((c for c in ["Diversite (%)","Diversité (%)"] if c in df_g.columns), None)
+                if div_col: st.line_chart(df_g[[div_col]].astype(float))
 
-                with tab5:
-                    if not patient["historique"].empty:
-                        st.dataframe(patient["historique"], use_container_width=True, hide_index=True)
-                        if len(patient["historique"]) > 1:
-                            df_g = patient["historique"].copy()
-                            df_g.index = range(len(df_g))
-                            gc1, gc2 = st.columns(2)
-                            with gc1: st.line_chart(df_g[["S. mutans (%)","P. gingiv. (%)"]].astype(float))
-                            with gc2:
-                                div_col = next((c for c in ["Diversite (%)","Diversité (%)"] if c in df_g.columns), None)
-                                if div_col: st.line_chart(df_g[[div_col]].astype(float))
-                    st.markdown("---")
-                    st.header("Ajouter une Intervention")
-                    with st.form("form_ajout"):
-                        fa1, fa2, fa3 = st.columns(3)
-                        with fa1:
-                            nd = st.date_input("Date", date.today())
-                            nact = st.selectbox("Intervention", ["Examen Initial","Contrôle Microbiome","Détartrage","Soin Carie","Surfaçage","Probiotiques Prescrits","Autre"])
-                        with fa2:
-                            ns  = st.number_input("S. mutans (%)", 0.0, 10.0, float(s_mutans), step=0.1)
-                            np_ = st.number_input("P. gingivalis (%)", 0.0, 5.0, float(p_gingivalis), step=0.1)
-                        with fa3:
-                            nd2 = st.number_input("Diversité (%)", 0, 100, int(diversite))
-                            st.markdown("<br>", unsafe_allow_html=True)
-                            sauver = st.form_submit_button("Sauvegarder", use_container_width=True, type="primary")
-                        if sauver:
-                            st_val = "Alerte" if ns>3.0 or np_>0.5 or nd2<50 else "Stable"
-                            nl = pd.DataFrame({"Date":[nd.strftime("%d/%m/%Y")],"Acte / Test":[nact],"S. mutans (%)":[ns],"P. gingiv. (%)":[np_],"Diversite (%)":[nd2],"Status":[st_val]})
-                            st.session_state.patients[st.session_state.patient_sel]["historique"] = pd.concat([patient["historique"],nl], ignore_index=True)
-                            st.session_state.patients[st.session_state.patient_sel]["s_mutans"] = ns
-                            st.session_state.patients[st.session_state.patient_sel]["p_gingivalis"] = np_
-                            st.session_state.patients[st.session_state.patient_sel]["diversite"] = nd2
-                            st.success("Sauvegardé.")
-                            st.rerun()
-                    st.markdown("---")
-                    st.header("Rapport PDF Complet")
-                    st.markdown("Le rapport inclut les **scores de risque systémique** avec les références scientifiques.")
-                    if st.button("Générer le rapport PDF", type="primary"):
-                        with st.spinner("Génération..."):
-                            pdf = generer_pdf(patient["nom"],r_carieux,r_paro,diversite,patient["historique"],plan,scores_sys)
-                        st.download_button(
-                            "📥 Télécharger le Rapport Patient Complet (PDF)",
-                            data=pdf,
-                            file_name=f"OralBiome_{patient['id']}_{patient['nom'].replace(' ','_')}.pdf",
-                            mime="application/pdf",
-                            type="primary",
-                            use_container_width=True
-                        )
+    st.markdown("---")
+    st.header("Ajouter une Intervention")
+    with st.form("form_ajout"):
+        fa1, fa2, fa3 = st.columns(3)
+        with fa1:
+            nd = st.date_input("Date", date.today())
+            nact = st.selectbox("Intervention", ["Contrôle Microbiome","Détartrage","Soin Carie","Surfaçage","Autre"])
+        with fa2:
+            ns = st.number_input("S. mutans (%)", 0.0, 10.0, float(s_mutans))
+            np_ = st.number_input("P. gingivalis (%)", 0.0, 5.0, float(p_gingivalis))
+        with fa3:
+            nd2 = st.number_input("Diversité (%)", 0, 100, int(diversite))
+        
+        if st.form_submit_button("Sauvegarder l'analyse", type="primary"):
+            st_val = "Alerte" if ns>3.0 or np_>0.5 or nd2<50 else "Stable"
+            nl = pd.DataFrame({"Date":[nd.strftime("%d/%m/%Y")],"Acte / Test":[nact],"S. mutans (%)":[ns],"P. gingiv. (%)":[np_],"Diversite (%)":[nd2],"Status":[st_val]})
+            st.session_state.patients[st.session_state.patient_sel]["historique"] = pd.concat([patient["historique"], nl], ignore_index=True)
+            st.success("Analyse ajoutée à l'historique.")
+            st.rerun()
+
+    st.markdown("---")
+    st.header("Rapport PDF Complet")
+    if st.button("Générer le rapport PDF", type="primary"):
+        with st.spinner("Génération..."):
+            pdf = generer_pdf(patient["nom"], r_carieux, r_paro, diversite, patient["historique"], plan, scores_sys)
+            st.download_button("📥 Télécharger le Rapport (PDF)", data=pdf, file_name=f"OralBiome_{patient['nom']}.pdf", mime="application/pdf")
