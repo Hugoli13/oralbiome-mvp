@@ -701,9 +701,271 @@ if "patients" not in st.session_state:
 if "anamnes" not in st.session_state:
     st.session_state.anamnes = {}
 
+if "onboarding_done" not in st.session_state:
+    st.session_state.onboarding_done = False
+
+if "onboarding_step" not in st.session_state:
+    st.session_state.onboarding_step = 1
+
+if "rgpd_accepted" not in st.session_state:
+    st.session_state.rgpd_accepted = False
 # ============================================================
 # ÉCRAN DE CHOIX
 # ============================================================
+def render_onboarding():
+ def render_rgpd_banner():
+    _, col_m, _ = st.columns([1, 3, 1])
+    with col_m:
+        st.markdown("""
+        <div style="background:white;border:2px solid #1a3a5c;border-radius:16px;
+                    padding:28px 32px;margin:40px auto;box-shadow:0 8px 32px rgba(0,0,0,0.12);">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                <span style="font-size:2rem;">🔒</span>
+                <div>
+                    <div style="font-family:'DM Serif Display',serif;font-size:1.3rem;color:#1a3a5c;font-weight:600;">
+                        Protection de vos données — RGPD
+                    </div>
+                    <div style="font-size:0.8rem;color:#6b7280;margin-top:2px;">
+                        Conformité Règlement Général sur la Protection des Données (UE 2016/679)
+                    </div>
+                </div>
+            </div>
+        </div>""", unsafe_allow_html=True)
+
+        with st.expander("📄 Lire la politique complète de confidentialité", expanded=False):
+            st.markdown("""
+**1. Responsable du traitement**
+OralBiome SAS — contact@oralbiome.com — DPO disponible sur demande.
+
+**2. Données collectées**
+Données d'identification (nom, âge, email, téléphone), données de santé bucco-dentaire (biomarqueurs microbiome), données de santé systémique (scores de risque), questionnaire d'anamnèse.
+
+**3. Base légale**
+Consentement explicite (Art. 9 RGPD) et intérêt légitime du professionnel de santé.
+
+**4. Finalités**
+Suivi de la santé bucco-dentaire et systémique, génération de rapports cliniques, communication praticien-patient.
+
+**5. Conservation**
+Durée de la relation de soin puis archivage légal (10 ans — dossiers médicaux).
+
+**6. Destinataires**
+Données jamais vendues ni transmises à des tiers à des fins commerciales.
+
+**7. Hébergement**
+Serveurs certifiés HDS (Hébergeur de Données de Santé) — Art. L.1111-8 CSP.
+
+**8. Vos droits**
+Accès, rectification, effacement, portabilité, opposition → contact@oralbiome.com
+
+**9. Réclamations**
+CNIL — www.cnil.fr
+            """)
+
+        st.markdown("""
+        <div style="background:#fefce8;border:1px solid #fde047;border-radius:10px;padding:14px 18px;margin:12px 0;">
+            <div style="font-size:0.85rem;color:#713f12;">
+                ⚠️ <b>Données de santé :</b> Les informations saisies constituent des données de santé au sens du RGPD.
+                Leur traitement est strictement encadré et réservé aux professionnels de santé habilités.
+            </div>
+        </div>""", unsafe_allow_html=True)
+
+        agree1 = st.checkbox("✅ J'accepte que mes données de santé soient traitées par OralBiome conformément à la politique de confidentialité ci-dessus.", key="rgpd_check1")
+        agree2 = st.checkbox("✅ Je confirme être un professionnel de santé habilité ou le patient concerné.", key="rgpd_check2")
+        st.checkbox("📧 J'accepte de recevoir des communications relatives à mon suivi OralBiome. *(optionnel)*", key="rgpd_check3")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        col_ref, col_acc = st.columns(2)
+        with col_ref:
+            if st.button("Refuser et quitter", use_container_width=True):
+                st.session_state.mode = "choix"; st.rerun()
+        with col_acc:
+            if st.button("Accepter et continuer →", use_container_width=True,
+                         type="primary", disabled=not (agree1 and agree2)):
+                st.session_state.rgpd_accepted = True; st.rerun()
+        if not (agree1 and agree2):
+            st.caption("⚠️ Les deux premières cases sont obligatoires.")
+    st.markdown("""
+    <style>
+    .wizard-card {
+        background:white;border-radius:20px;padding:40px 44px;
+        border:1px solid #e5e7eb;box-shadow:0 4px 24px rgba(0,0,0,0.06);
+        max-width:680px;margin:0 auto;
+    }
+    .feature-chip {
+        display:inline-flex;align-items:center;gap:6px;
+        background:#f0f9ff;border:1px solid #bae6fd;border-radius:20px;
+        padding:6px 14px;margin:4px;font-size:0.82rem;color:#0369a1;font-weight:500;
+    }
+    .step-circle-active   { background:#2563eb;border:2px solid #2563eb;color:white; }
+    .step-circle-done     { background:#16a34a;border:2px solid #16a34a;color:white; }
+    .step-circle-inactive { background:white;border:2px solid #d1d5db;color:#9ca3af; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    step = st.session_state.onboarding_step
+
+    # Header
+    logo_h = logo_img(width=160, style="margin:0 auto 16px auto;")
+    st.markdown(f"""
+    <div style="background:linear-gradient(135deg,#0a1628,#1a3a5c);border-radius:20px;
+         padding:32px 40px;margin-bottom:32px;text-align:center;color:white;">
+        {logo_h}
+        <h2 style="font-family:'DM Serif Display',serif;font-size:2rem;margin:0;">Bienvenue sur OralBiome</h2>
+        <p style="opacity:0.7;margin:8px 0 0 0;font-size:0.95rem;">Configuration de votre espace · 3 étapes · moins de 2 minutes</p>
+    </div>""", unsafe_allow_html=True)
+
+    # Barre de progression
+    def s_circle(n):
+        if n < step:   css = "background:#16a34a;border:2px solid #16a34a;color:white;"
+        elif n == step: css = "background:#2563eb;border:2px solid #2563eb;color:white;"
+        else:           css = "background:white;border:2px solid #d1d5db;color:#9ca3af;"
+        txt = "✓" if n < step else str(n)
+        return f'<div style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.9rem;{css}">{txt}</div>'
+    def s_label(txt, n):
+        c = "#16a34a" if n < step else "#2563eb" if n == step else "#9ca3af"
+        return f'<div style="font-size:0.78rem;font-weight:600;color:{c};margin-top:6px;">{txt}</div>'
+    def s_line(n):
+        c = "#16a34a" if n < step else "#e5e7eb"
+        return f'<div style="width:80px;height:2px;background:{c};margin:18px 4px 0 4px;"></div>'
+
+    st.markdown(f"""
+    <div style="display:flex;justify-content:center;align-items:flex-start;margin:0 0 36px 0;">
+        <div style="text-align:center;">{s_circle(1)}{s_label("Bienvenue",1)}</div>
+        {s_line(1)}
+        <div style="text-align:center;">{s_circle(2)}{s_label("Votre cabinet",2)}</div>
+        {s_line(2)}
+        <div style="text-align:center;">{s_circle(3)}{s_label("Premier patient",3)}</div>
+    </div>""", unsafe_allow_html=True)
+
+    _, col_center, _ = st.columns([1, 2, 1])
+
+    # ── ÉTAPE 1 ──────────────────────────────────────────────
+    if step == 1:
+        with col_center:
+            st.markdown("""
+            <div class="wizard-card">
+                <div style="font-size:2.4rem;text-align:center;margin-bottom:12px;">🦷</div>
+                <h3 style="font-family:'DM Serif Display',serif;color:#1a3a5c;text-align:center;margin:0 0 8px 0;">
+                    La plateforme d'intelligence orale prédictive
+                </h3>
+                <p style="color:#6b7280;text-align:center;font-size:0.9rem;margin-bottom:24px;">
+                    Corrèlez le microbiote oral de vos patients avec leurs risques systémiques.<br>
+                    Générez des rapports cliniques en 1 clic. Suivez l'évolution en temps réel.
+                </p>
+                <div style="text-align:center;margin-bottom:24px;">
+                    <span class="feature-chip">🧬 Microbiome oral prédictif</span>
+                    <span class="feature-chip">❤️ Risques cardiovasculaires</span>
+                    <span class="feature-chip">🧠 Alzheimer & neuro</span>
+                    <span class="feature-chip">📊 Benchmark NHANES n=8 237</span>
+                    <span class="feature-chip">🤖 IA Claude intégrée</span>
+                    <span class="feature-chip">📄 PDF automatiques</span>
+                </div>
+                <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;text-align:center;">
+                    <div style="font-weight:600;color:#15803d;margin-bottom:4px;">✅ Votre compte est activé</div>
+                    <div style="font-size:0.85rem;color:#166534;">Accès complet à toutes les fonctionnalités · Données sécurisées</div>
+                </div>
+            </div>""", unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Commencer la configuration →", use_container_width=True, type="primary"):
+                st.session_state.onboarding_step = 2
+                st.rerun()
+
+    # ── ÉTAPE 2 ──────────────────────────────────────────────
+    elif step == 2:
+        with col_center:
+            st.markdown("### 🏥 Configurez votre cabinet")
+            st.caption("Ces informations apparaîtront sur vos rapports PDF.")
+            with st.form("form_cabinet"):
+                c1, c2 = st.columns(2)
+                with c1:
+                    cabinet_nom = st.text_input("Nom du cabinet *",
+                        value=st.session_state.get("cabinet_nom",""),
+                        placeholder="Ex: Cabinet Dentaire Dupont")
+                    cabinet_praticien = st.text_input("Praticien *",
+                        value=st.session_state.get("cabinet_praticien",""),
+                        placeholder="Ex: Dr. Marie Dupont")
+                    cabinet_specialite = st.selectbox("Spécialité",
+                        ["Omnipraticien","Parodontiste","Orthodontiste","Implantologiste","Pédodontiste","Autre"])
+                with c2:
+                    cabinet_adresse = st.text_input("Adresse",
+                        value=st.session_state.get("cabinet_adresse",""),
+                        placeholder="Ex: 12 rue de la Santé, Paris")
+                    cabinet_tel = st.text_input("Téléphone",
+                        value=st.session_state.get("cabinet_tel",""),
+                        placeholder="+33 1 23 45 67 89")
+                    cabinet_email = st.text_input("Email cabinet",
+                        value=st.session_state.get("cabinet_email",""),
+                        placeholder="contact@cabinet.fr")
+                st.markdown("---")
+                st.markdown("**🔔 Préférences de suivi**")
+                p1, p2 = st.columns(2)
+                with p1:
+                    rappel_semaines = st.selectbox("Intervalle rappel par défaut",
+                        [8,12,16,24], format_func=lambda x: f"Tous les {x} semaines", index=1)
+                with p2:
+                    seuil_alerte = st.selectbox("Seuil alerte P. gingivalis",
+                        [0.3,0.5,0.8,1.0], format_func=lambda x: f"> {x}%", index=1)
+                sub2 = st.form_submit_button("Enregistrer et continuer →",
+                    use_container_width=True, type="primary")
+                if sub2:
+                    if not cabinet_nom.strip() or not cabinet_praticien.strip():
+                        st.error("Le nom du cabinet et le nom du praticien sont obligatoires.")
+                    else:
+                        st.session_state.cabinet_nom        = cabinet_nom
+                        st.session_state.cabinet_praticien  = cabinet_praticien
+                        st.session_state.cabinet_adresse    = cabinet_adresse
+                        st.session_state.cabinet_tel        = cabinet_tel
+                        st.session_state.cabinet_email      = cabinet_email
+                        st.session_state.cabinet_specialite = cabinet_specialite
+                        st.session_state.rappel_semaines    = rappel_semaines
+                        st.session_state.seuil_alerte       = seuil_alerte
+                        st.session_state.onboarding_step    = 3
+                        st.rerun()
+            if st.button("← Retour", key="back2"):
+                st.session_state.onboarding_step = 1; st.rerun()
+
+    # ── ÉTAPE 3 ──────────────────────────────────────────────
+    elif step == 3:
+        with col_center:
+            st.markdown("### 👤 Ajoutez votre premier patient")
+            st.caption("Vous pourrez en ajouter d'autres depuis le tableau de bord. Cette étape est optionnelle.")
+            with st.form("form_premier_patient"):
+                fc1, fc2 = st.columns(2)
+                with fc1:
+                    p_nom   = st.text_input("Nom complet", placeholder="Ex: Jean Dupont")
+                    p_age   = st.number_input("Âge", 1, 120, 40)
+                    p_email = st.text_input("Email patient", placeholder="jean@email.com")
+                with fc2:
+                    p_tel = st.text_input("Téléphone", placeholder="+32 472 000 000")
+                    p_sm  = st.number_input("S. mutans (%)", 0.0, 10.0, 2.0, step=0.1)
+                    p_pg  = st.number_input("P. gingivalis (%)", 0.0, 5.0, 0.2, step=0.1)
+                p_div = st.slider("Score Diversité Microbienne", 0, 100, 70)
+                col_skip, col_save = st.columns(2)
+                with col_skip:
+                    passer = st.form_submit_button("Passer cette étape →", use_container_width=True)
+                with col_save:
+                    sauver = st.form_submit_button("Créer le dossier et terminer ✓",
+                        use_container_width=True, type="primary")
+                if passer:
+                    st.session_state.onboarding_done = True
+                    st.session_state.connecte = True
+                    st.session_state.mode = "praticien"
+                    st.rerun()
+                if sauver:
+                    if p_nom.strip():
+                        nid  = f"P{str(len(st.session_state.patients)+1).zfill(3)}"
+                        stat = "Alerte" if p_sm>3.0 or p_pg>0.5 or p_div<50 else "Stable"
+                        df_n = pd.DataFrame({"Date":[date.today().strftime("%d/%m/%Y")],"Acte / Test":["Examen Initial"],"S. mutans (%)":[p_sm],"P. gingiv. (%)":[p_pg],"Diversite (%)":[p_div],"Status":[stat]})
+                        st.session_state.patients[p_nom] = {"id":nid,"nom":p_nom,"age":p_age,"email":p_email,"telephone":p_tel,"date_naissance":"","historique":df_n,"s_mutans":p_sm,"p_gingivalis":p_pg,"diversite":p_div,"code_patient":f"OB-{nid}"}
+                        st.session_state.patient_sel = p_nom
+                    st.session_state.onboarding_done = True
+                    st.session_state.connecte = True
+                    st.session_state.mode = "praticien"
+                    st.success("✅ Cabinet configuré ! Bienvenue sur OralBiome.")
+                    st.rerun()
+            if st.button("← Retour", key="back3"):
+                st.session_state.onboarding_step = 2; st.rerun()
 if st.session_state.mode == "choix":
     st.markdown("""
     <style>
@@ -746,7 +1008,10 @@ if st.session_state.mode == "choix":
 # PORTAIL PATIENT
 # ============================================================
 elif st.session_state.mode == "patient":
-
+# RGPD avant accès patient
+    if not st.session_state.rgpd_accepted:
+        render_rgpd_banner()
+        st.stop()
     if st.session_state.patient_connecte is None:
         col1, col2, col3 = st.columns([1,1,1])
         with col2:
@@ -1027,7 +1292,14 @@ elif st.session_state.mode == "patient":
 elif st.session_state.mode == "praticien":
 
     if not st.session_state.connecte:
-        col1, col2, col3 = st.columns([1,1,1])
+
+        # RGPD avant login
+        if not st.session_state.rgpd_accepted:
+            render_rgpd_banner()
+            st.stop()
+
+        # LOGIN
+        col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
             st.markdown("<br>", unsafe_allow_html=True)
             if LOGO_B64:
@@ -1040,13 +1312,21 @@ elif st.session_state.mode == "praticien":
             mdp   = st.text_input("Mot de passe", type="password")
             if st.button("Se connecter", use_container_width=True, type="primary"):
                 if email == "contact@oralbiome.com" and mdp == "mvp2024":
-                    st.session_state.connecte = True; st.rerun()
+                    st.session_state.connecte = True
+                    if not st.session_state.onboarding_done:
+                        st.session_state.onboarding_step = 1
+                    st.rerun()
                 else:
                     st.error("Identifiants incorrects. Demo : contact@oralbiome.com / mvp2024")
             if st.button("Retour à l'accueil", use_container_width=True):
                 st.session_state.mode = "choix"; st.rerun()
 
     else:
+        # Wizard onboarding première connexion
+        if not st.session_state.onboarding_done:
+            render_onboarding()
+            st.stop()
+
         # ── SIDEBAR ───────────────────────────────────────────
         if LOGO_B64:
             st.sidebar.markdown(f"<div style='text-align:center;padding:8px 0 4px 0;'>{logo_img(width=400)}</div>", unsafe_allow_html=True)
