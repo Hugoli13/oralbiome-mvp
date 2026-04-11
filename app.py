@@ -361,14 +361,13 @@ def render_arch_svg(twin, quadrant_top, quadrant_bot, is_praticien=True, selecte
         n = len(nums)
         for i, num in enumerate(nums):
             t = i / (n-1)
-            angle = 3.14159 * (0.06 + t * 0.88)
             rx = W/2 - 55
             ry = H/2 - 25
             cx = W/2 + rx * (-1 + 2*t) * 0.95
             if row == "top":
-                cy = H/2 - ry * abs(0.5 - t) * 1.1 if t < 0.5 else H/2 - ry * abs(0.5-t)*1.1
-                cy = H/2 - ry * (1 - abs(1-2*t)) * 0.85
                 cy = max(20, min(H-20, H/2 - 60 + 120*abs(0.5-t)*1.6))
+            else:
+                cy = max(20, min(H-20, H/2 + 60 - 120*abs(0.5-t)*1.6))
             positions[num] = (cx, cy)
         return positions
 
