@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import math
 from datetime import date, datetime, timedelta
 import io, base64, json, requests, os, hashlib
 
@@ -333,95 +334,77 @@ def render_dent_svg(num, dent_data, selected=False):
     return svg
 
 def render_arch_svg(twin, quadrant_top, quadrant_bot, is_praticien=True, selected_num=None):
-    """Rendu SVG de l'arc dentaire complet (vue occlusale 3D)."""
-    # Arc maxillaire (quadrants 1+2) ou mandibulaire (3+4)
-    top_nums = ([18,17,16,15,14,13,12,11] + [21,22,23,24,25,26,27,28])
-    bot_nums = ([48,47,46,45,44,43,42,41] + [31,32,33,34,35,36,37,38])
+    """Rendu anatomique réaliste de l'arc dentaire (Vue Occlusale)"""
+    # Sélection des numéros de dents selon l'arcade demandée
+    if quadrant_top == 1:
+        nums = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28]
+        is_top_arch = True
+    else:
+        # Pour l'arcade mandibulaire (Bas), on utilise les quadrants 3 et 4
+        nums = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38]
+        is_top_arch = False
 
-    W,H = 700, 200
-    svg_parts=[f'<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:700px;">']
+    W, H = 700, 350 # Augmentation de la hauteur pour l'effet de profondeur
+    svg_parts = [f'<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" style="width:100%; max-width:700px;">']
 
-    # Fond arc gencival
-    svg_parts.append(f'''
+    # Définitions des filtres et styles pour le rendu "image 2"
+    svg_parts.append('''
     <defs>
-        <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#f0f4ff" stop-opacity="0.8"/>
-            <stop offset="100%" stop-color="#e8edf8" stop-opacity="0.4"/>
+        <radialGradient id="gumGrad" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#fdf2f2" />
+            <stop offset="100%" stop-color="#fce7f3" />
         </radialGradient>
-    </defs>
-    <ellipse cx="{W/2}" cy="{H/2}" rx="{W/2-10}" ry="{H/2-10}" fill="url(#bgGrad)" stroke="#dbeafe" stroke-width="0.5"/>
-    ''')
+        <filter id="toothShadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="2" />
+            <feOffset dx="1" dy="2" result="offsetblur" />
+            <feComponentTransfer><feFuncA type="linear" slope="0.3"/></feComponentTransfer>
+            <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+    </defs>''')
 
-    # Ligne médiane
-    svg_parts.append(f'<line x1="{W/2}" y1="5" x2="{W/2}" y2="{H-5}" stroke="#cbd5e1" stroke-width="0.8" stroke-dasharray="3,3" opacity="0.6"/>')
+    # Tracé de la base de l'arcade (gencive)
+    path_y = 60 if is_top_arch else H - 60
+    svg_parts.append(f'<path d="M 50,{H/2} Q {W/2},{path_y} {W-50},{H/2}" fill="none" stroke="#fce7f3" stroke-width="65" stroke-linecap="round" opacity="0.6"/>')
 
-    # ── Positionnement arc ── chaque dent placée sur une ellipse
-    def arch_positions(nums, row="top"):
-        positions = {}
-        n = len(nums)
-        for i, num in enumerate(nums):
-            t = i / (n-1)
-            rx = W/2 - 55
-            ry = H/2 - 25
-            cx = W/2 + rx * (-1 + 2*t) * 0.95
-            if row == "top":
-                cy = max(20, min(H-20, H/2 - 60 + 120*abs(0.5-t)*1.6))
-            else:
-                cy = max(20, min(H-20, H/2 + 60 - 120*abs(0.5-t)*1.6))
-            positions[num] = (cx, cy)
-        return positions
+    # Placement des dents sur l'arc de cercle
+    for i, num in enumerate(nums):
+        t = i / (len(nums) - 1)
+        angle = math.pi * (1.15 - t * 1.3) # Calcul de l'angle pour le fer à cheval
+        radius_x, radius_y = 285, 145
+        cx = W/2 + math.cos(angle) * radius_x
+        cy = H/2 - math.sin(angle) * radius_y * (1 if is_top_arch else -1)
 
-    positions_top = arch_positions(top_nums)
-    positions_bot = arch_positions(bot_nums, "bot")
-
-    # Dessiner les dents de l'arc supérieur
-    for i, num in enumerate(top_nums):
-        cx, cy = positions_top[num]
+        # Récupération des données de la dent
         d = twin["dents"].get(str(num), {"etat":"saine"})
+        dtype = DENTS_FDI.get(num, {}).get("type", "incisive")
         color = dent_color(d.get("etat","saine"), d.get("risque_carie",0), d.get("inflammation",0))
-        info = DENTS_FDI.get(num,{}); dtype = info.get("type","incisive")
-        W2,H2 = {"molaire":(26,20),"premolaire":(20,18),"canine":(16,22),"incisive":(14,20),"sagesse":(20,17)}.get(dtype,(18,18))
-        absent = d.get("etat")=="absente"
-        sel = (num==selected_num)
-        glow = f'filter:drop-shadow(0 0 5px {color}99);' if sel else ""
+        
+        if d.get("etat") == "absente":
+            svg_parts.append(f'<circle cx="{cx}" cy="{cy}" r="12" fill="#e2e8f0" stroke="#94a3b8" stroke-dasharray="2,2" opacity="0.5"/>')
+            continue
 
-        if absent:
-            svg_parts.append(f'<ellipse cx="{cx:.0f}" cy="{cy:.0f}" rx="{W2/2:.0f}" ry="{H2/2:.0f}" fill="#e2e8f0" stroke="#94a3b8" stroke-width="0.8" stroke-dasharray="2,2" opacity="0.5"/>')
-        else:
-            # Ombre
-            svg_parts.append(f'<ellipse cx="{cx+1:.0f}" cy="{cy+1:.0f}" rx="{W2/2:.0f}" ry="{H2/2:.0f}" fill="rgba(0,0,0,0.2)"/>')
-            # Corps
-            if dtype in ["molaire","premolaire"]:
-                rx2,ry2=W2/2-1,H2/2-1
-                svg_parts.append(f'<rect x="{cx-rx2:.0f}" y="{cy-ry2:.0f}" width="{W2-2}" height="{H2-2}" rx="4" fill="{color}"/>')
-                if dtype=="molaire":
-                    svg_parts.append(f'<line x1="{cx:.0f}" y1="{cy-ry2+2:.0f}" x2="{cx:.0f}" y2="{cy+ry2-2:.0f}" stroke="rgba(0,0,0,0.12)" stroke-width="1.2"/>')
-                    svg_parts.append(f'<line x1="{cx-rx2+2:.0f}" y1="{cy:.0f}" x2="{cx+rx2-2:.0f}" y2="{cy:.0f}" stroke="rgba(0,0,0,0.12)" stroke-width="1.2"/>')
-            elif dtype=="canine":
-                svg_parts.append(f'<ellipse cx="{cx:.0f}" cy="{cy+2:.0f}" rx="{W2/2-1:.0f}" ry="{H2/2-1:.0f}" fill="{color}"/>')
-                svg_parts.append(f'<ellipse cx="{cx:.0f}" cy="{cy-H2/2+1:.0f}" rx="3" ry="4" fill="{color}"/>')
-            else:
-                svg_parts.append(f'<ellipse cx="{cx:.0f}" cy="{cy:.0f}" rx="{W2/2-1:.0f}" ry="{H2/2-1:.0f}" fill="{color}"/>')
-            # Reflet
-            svg_parts.append(f'<ellipse cx="{cx-W2*0.18:.0f}" cy="{cy-H2*0.22:.0f}" rx="{W2*0.2:.0f}" ry="{H2*0.18:.0f}" fill="white" opacity="0.28"/>')
-        # Numéro
+        # Formes anatomiques personnalisées selon le type
+        w, h = {"molaire":(38,34), "premolaire":(30,30), "canine":(24,28), "incisive":(22,26)}.get(dtype, (25,25))
+        
+        if dtype == "molaire":
+            path_shape = f"M {cx-w/2+4},{cy-h/2} Q {cx},{cy-h/2-2} {cx+w/2-4},{cy-h/2} Q {cx+w/2},{cy} {cx+w/2-4},{cy+h/2} Q {cx},{cy+h/2+2} {cx-w/2+4},{cy+h/2} Q {cx-w/2},{cy} {cx-w/2+4},{cy-h/2}"
+        elif dtype == "incisive":
+            path_shape = f"M {cx-w/2},{cy} Q {cx-w/2},{cy-h/2} {cx},{cy-h/2} Q {cx+w/2},{cy-h/2} {cx+w/2},{cy} Q {cx+w/2},{cy+h/2} {cx},{cy+h/2} Q {cx-w/2},{cy+h/2} {cx-w/2},{cy}"
+        else: # Canine / Prémolaire
+            path_shape = f"M {cx-w/2+2},{cy-h/2+2} Q {cx},{cy-h/2-4} {cx+w/2-2},{cy-h/2+2} Q {cx+w/2+2},{cy} {cx+w/2-2},{cy+h/2-2} Q {cx},{cy+h/2+4} {cx-w/2+2},{cy+h/2-2} Q {cx-w/2-2},{cy} {cx-w/2+2},{cy-h/2+2}"
+
+        # Dessin de la dent avec ombre portée
+        svg_parts.append(f'<path d="{path_shape}" fill="{color}" filter="url(#toothShadow)" stroke="#e5e7eb" stroke-width="0.5"/>')
+        
+        # Sillons de relief (pour molaires et prémolaires)
+        if dtype in ["molaire", "premolaire"]:
+            svg_parts.append(f'<path d="M {cx-w/4},{cy} L {cx+w/4},{cy} M {cx},{cy-h/4} L {cx},{cy+h/4}" stroke="rgba(0,0,0,0.08)" stroke-width="1.2" fill="none"/>')
+
+        # Affichage du numéro FDI (plus discret, mode praticien)
         if is_praticien:
-            svg_parts.append(f'<text x="{cx:.0f}" y="{cy+3:.0f}" text-anchor="middle" font-size="6" fill="white" font-family="monospace" font-weight="bold" opacity="0.9">{num}</text>')
-        # Badges
-        rc=d.get("risque_carie",0); infl=d.get("inflammation",0)
-        if rc>40 and not absent:
-            rc_c="#dc2626" if rc>70 else "#f59e0b"
-            svg_parts.append(f'<circle cx="{cx+W2/2-1:.0f}" cy="{cy-H2/2+1:.0f}" r="4" fill="{rc_c}" stroke="white" stroke-width="0.7"/>')
-        if infl>40 and not absent:
-            in_c="#dc2626" if infl>70 else "#f97316"
-            svg_parts.append(f'<circle cx="{cx-W2/2+1:.0f}" cy="{cy-H2/2+1:.0f}" r="4" fill="{in_c}" stroke="white" stroke-width="0.7"/>')
-        if d.get("soins") and not absent:
-            svg_parts.append(f'<circle cx="{cx+W2/2-1:.0f}" cy="{cy+H2/2-1:.0f}" r="3.5" fill="#6366f1" stroke="white" stroke-width="0.6"/>')
+            svg_parts.append(f'<text x="{cx}" y="{cy+4}" text-anchor="middle" font-size="8" fill="#1a3a5c" font-weight="bold" style="opacity:0.3; pointer-events:none;">{num}</text>')
 
-    # Labels quadrants
-    svg_parts.append(f'<text x="120" y="12" font-size="7" fill="#94a3b8" text-anchor="middle" font-weight="600">Q1 — HAUT DROITE</text>')
-    svg_parts.append(f'<text x="580" y="12" font-size="7" fill="#94a3b8" text-anchor="middle" font-weight="600">Q2 — HAUT GAUCHE</text>')
-    svg_parts.append(f'</svg>')
+    svg_parts.append('</svg>')
     return "".join(svg_parts)
 
 def render_twin_complet(twin, sm, pg, mode="praticien", pid=""):
