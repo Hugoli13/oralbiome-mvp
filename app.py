@@ -334,75 +334,76 @@ def render_dent_svg(num, dent_data, selected=False):
     return svg
 
 def render_arch_svg(twin, quadrant_top, quadrant_bot, is_praticien=True, selected_num=None):
-    """Rendu anatomique réaliste de l'arc dentaire (Vue Occlusale)"""
-    # Sélection des numéros de dents selon l'arcade demandée
+    """Rendu anatomique réaliste type arcade dentaire occlusale"""
+    # Sélection des dents selon l'arcade
     if quadrant_top == 1:
         nums = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28]
         is_top_arch = True
     else:
-        # Pour l'arcade mandibulaire (Bas), on utilise les quadrants 3 et 4
         nums = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38]
         is_top_arch = False
 
-    W, H = 700, 350 # Augmentation de la hauteur pour l'effet de profondeur
-    svg_parts = [f'<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" style="width:100%; max-width:700px;">']
+    W, H = 800, 400
+    svg_parts = [f'<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto;">']
 
-    # Définitions des filtres et styles pour le rendu "image 2"
+    # Définitions des effets de lumière et d'ombre (crucial pour le rendu réaliste)
     svg_parts.append('''
     <defs>
-        <radialGradient id="gumGrad" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#fdf2f2" />
-            <stop offset="100%" stop-color="#fce7f3" />
-        </radialGradient>
-        <filter id="toothShadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur in="SourceAlpha" stdDeviation="2" />
-            <feOffset dx="1" dy="2" result="offsetblur" />
-            <feComponentTransfer><feFuncA type="linear" slope="0.3"/></feComponentTransfer>
+        <filter id="shadowTooth" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="3" />
+            <feOffset dx="2" dy="3" result="offsetblur" />
+            <feComponentTransfer><feFuncA type="linear" slope="0.4"/></feComponentTransfer>
             <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
         </filter>
+        <linearGradient id="toothGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:white;stop-opacity:0.3" />
+            <stop offset="100%" style="stop-color:black;stop-opacity:0.05" />
+        </linearGradient>
     </defs>''')
 
-    # Tracé de la base de l'arcade (gencive)
-    path_y = 60 if is_top_arch else H - 60
-    svg_parts.append(f'<path d="M 50,{H/2} Q {W/2},{path_y} {W-50},{H/2}" fill="none" stroke="#fce7f3" stroke-width="65" stroke-linecap="round" opacity="0.6"/>')
+    # Tracé de la gencive de fond (forme en fer à cheval rose pâle)
+    gum_path = "M 100,300 Q 400,50 700,300" if is_top_arch else "M 100,100 Q 400,350 700,100"
+    svg_parts.append(f'<path d="{gum_path}" fill="none" stroke="#fce7f3" stroke-width="70" stroke-linecap="round" opacity="0.6"/>')
 
-    # Placement des dents sur l'arc de cercle
+    # Placement des dents
     for i, num in enumerate(nums):
         t = i / (len(nums) - 1)
-        angle = math.pi * (1.15 - t * 1.3) # Calcul de l'angle pour le fer à cheval
-        radius_x, radius_y = 285, 145
-        cx = W/2 + math.cos(angle) * radius_x
-        cy = H/2 - math.sin(angle) * radius_y * (1 if is_top_arch else -1)
+        angle = math.pi * (1.1 - t * 1.2)
+        rx, ry = 300, 160
+        cx = W/2 + math.cos(angle) * rx
+        cy = H/2 - math.sin(angle) * ry * (1 if is_top_arch else -1)
 
-        # Récupération des données de la dent
         d = twin["dents"].get(str(num), {"etat":"saine"})
         dtype = DENTS_FDI.get(num, {}).get("type", "incisive")
         color = dent_color(d.get("etat","saine"), d.get("risque_carie",0), d.get("inflammation",0))
         
-        if d.get("etat") == "absente":
-            svg_parts.append(f'<circle cx="{cx}" cy="{cy}" r="12" fill="#e2e8f0" stroke="#94a3b8" stroke-dasharray="2,2" opacity="0.5"/>')
-            continue
+        if d.get("etat") == "absente": continue
 
-        # Formes anatomiques personnalisées selon le type
-        w, h = {"molaire":(38,34), "premolaire":(30,30), "canine":(24,28), "incisive":(22,26)}.get(dtype, (25,25))
+        # Dimensions anatomiques
+        w, h = {"molaire":(45,40), "premolaire":(34,34), "canine":(26,30), "incisive":(24,28)}.get(dtype, (30,30))
         
+        # DESSIN ANATOMIQUE (Path complexe au lieu de cercles)
         if dtype == "molaire":
-            path_shape = f"M {cx-w/2+4},{cy-h/2} Q {cx},{cy-h/2-2} {cx+w/2-4},{cy-h/2} Q {cx+w/2},{cy} {cx+w/2-4},{cy+h/2} Q {cx},{cy+h/2+2} {cx-w/2+4},{cy+h/2} Q {cx-w/2},{cy} {cx-w/2+4},{cy-h/2}"
+            # Forme carrée avec coins arrondis et sillons
+            path = f"M {cx-w/2+5},{cy-h/2} L {cx+w/2-5},{cy-h/2} Q {cx+w/2},{cy-h/2} {cx+w/2},{cy-h/2+5} L {cx+w/2},{cy+h/2-5} Q {cx+w/2},{cy+h/2} {cx+w/2-5},{cy+h/2} L {cx-w/2+5},{cy+h/2} Q {cx-w/2},{cy+h/2} {cx-w/2},{cy+h/2-5} L {cx-w/2},{cy-h/2+5} Q {cx-w/2},{cy-h/2} {cx-w/2+5},{cy-h/2}"
         elif dtype == "incisive":
-            path_shape = f"M {cx-w/2},{cy} Q {cx-w/2},{cy-h/2} {cx},{cy-h/2} Q {cx+w/2},{cy-h/2} {cx+w/2},{cy} Q {cx+w/2},{cy+h/2} {cx},{cy+h/2} Q {cx-w/2},{cy+h/2} {cx-w/2},{cy}"
-        else: # Canine / Prémolaire
-            path_shape = f"M {cx-w/2+2},{cy-h/2+2} Q {cx},{cy-h/2-4} {cx+w/2-2},{cy-h/2+2} Q {cx+w/2+2},{cy} {cx+w/2-2},{cy+h/2-2} Q {cx},{cy+h/2+4} {cx-w/2+2},{cy+h/2-2} Q {cx-w/2-2},{cy} {cx-w/2+2},{cy-h/2+2}"
+            # Forme ovale allongée
+            path = f"M {cx-w/2},{cy} A {w/2},{h/2} 0 1,1 {cx+w/2},{cy} A {w/2},{h/2} 0 1,1 {cx-w/2},{cy}"
+        else: # Canines et Prémolaires
+            # Forme de diamant arrondi
+            path = f"M {cx},{cy-h/2} Q {cx+w/2},{cy} {cx},{cy+h/2} Q {cx-w/2},{cy} {cx},{cy-h/2}"
 
-        # Dessin de la dent avec ombre portée
-        svg_parts.append(f'<path d="{path_shape}" fill="{color}" filter="url(#toothShadow)" stroke="#e5e7eb" stroke-width="0.5"/>')
-        
-        # Sillons de relief (pour molaires et prémolaires)
+        # Rendu final de la dent
+        svg_parts.append(f'<path d="{path}" fill="{color}" filter="url(#shadowTooth)" stroke="rgba(0,0,0,0.1)" stroke-width="1"/>')
+        svg_parts.append(f'<path d="{path}" fill="url(#toothGrad)" />') # Reflet brillant
+
+        # Sillons occlusaux pour les molaires
         if dtype in ["molaire", "premolaire"]:
-            svg_parts.append(f'<path d="M {cx-w/4},{cy} L {cx+w/4},{cy} M {cx},{cy-h/4} L {cx},{cy+h/4}" stroke="rgba(0,0,0,0.08)" stroke-width="1.2" fill="none"/>')
+            svg_parts.append(f'<path d="M {cx-w/4},{cy} L {cx+w/4},{cy} M {cx},{cy-h/4} L {cx},{cy+h/4}" stroke="rgba(0,0,0,0.15)" fill="none" />')
 
-        # Affichage du numéro FDI (plus discret, mode praticien)
+        # Numéro FDI (discret)
         if is_praticien:
-            svg_parts.append(f'<text x="{cx}" y="{cy+4}" text-anchor="middle" font-size="8" fill="#1a3a5c" font-weight="bold" style="opacity:0.3; pointer-events:none;">{num}</text>')
+            svg_parts.append(f'<text x="{cx}" y="{cy+4}" text-anchor="middle" font-size="10" fill="#1a3a5c" font-weight="bold" opacity="0.4">{num}</text>')
 
     svg_parts.append('</svg>')
     return "".join(svg_parts)
