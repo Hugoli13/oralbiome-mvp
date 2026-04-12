@@ -1520,6 +1520,585 @@ def render_iot_dashboard(patient):
             bc = "#dc2626" if conseil["prio"]=="urgent" else "#d97706" if conseil["prio"]=="modere" else "#16a34a"
             st.markdown(f'<div style="background:{bg};border-left:4px solid {bc};border-radius:8px;padding:12px 16px;margin:6px 0;font-size:0.88rem;color:#374151;">{conseil["icon"]} {conseil["msg"]}</div>', unsafe_allow_html=True)
 
+# ══════════════════════════════════════════════════════════════
+# MODULE — ANALYSE RADIOLOGIQUE IA
+# OPG (Panoramique) + Rétro-alvéolaires
+# ══════════════════════════════════════════════════════════════
+
+RADIO_SYSTEM_PROMPT = """Tu es un assistant d'aide à la décision radiologique dentaire expert, formé pour analyser des clichés dentaires.
+Tu analyses uniquement dans un cadre d'aide à la décision pour des praticiens qualifiés.
+
+Pour une radio panoramique OPG, analyse :
+- Toutes les dents visibles avec leur numérotation FDI (11-18, 21-28, 31-38, 41-48)
+- Caries interproximales, occlusales, cervicales
+- Perte osseuse alvéolaire (horizontale/verticale, légère <3mm / modérée 3-6mm / sévère >6mm)
+- Lésions apicales, granulomes, kystes
+- État des dents de sagesse (éruption, inclusions, angulation)
+- Qualité des restaurations existantes, couronnes, implants
+- Anomalies de structure osseuse, asymétries
+
+Pour une rétro-alvéolaire, analyse avec précision :
+- Dents spécifiques visibles
+- Caries interproximales (stade 0-4 selon classification internationale)
+- Niveau osseux précis (distance jonction amélo-cémentaire → crête alvéolaire)
+- Espace desmodontal
+- Apex et lésions péri-apicales
+- Qualité des restaurations (étanchéité, débords, sous-contours)
+
+Réponds UNIQUEMENT en JSON valide sans markdown ni backtick :
+{
+  "type_radio": "panoramique|retro_alveolaire",
+  "qualite_image": "excellente|bonne|moyenne|insuffisante",
+  "dents_visibles": [{"num_fdi": 11, "nom": "Incisive centrale sup droite", "etat_general": "saine|restaurée|cariée|absente|traitée", "present": true}],
+  "caries_detectees": [{"dent_fdi": 0, "localisation": "interproximale|occlusale|cervicale|sous-gingivale", "stade": "initiale|modérée|profonde|pulpaire", "urgence": "surveillance|traitement_programme|urgent", "detail": "..."}],
+  "perte_osseuse": {"present": true, "type": "horizontale|verticale|mixte|aucune", "severite": "legere|moderee|severe|aucune", "zones_atteintes": ["..."], "mesures_estimees": {"sextant_anterieur": "...", "sextant_posterieur_droit": "...", "sextant_posterieur_gauche": "..."}, "detail": "..."},
+  "lesions_apicales": [{"dent_fdi": 0, "type": "granulome|kyste|abces|cicatrice", "taille_mm": 0, "urgence": "surveillance|traitement_endodontique|extraction", "detail": "..."}],
+  "sagesses": [{"dent_fdi": 0, "statut": "eruption_normale|inclusion_partielle|inclusion_totale|angulation_mesiale|angulation_distale|absente", "recommandation": "surveillance|extraction_preventive|extraction_urgente|aucune", "detail": "..."}],
+  "restaurations": [{"dent_fdi": 0, "type": "composite|amalgame|couronne|inlay|onlay|implant", "qualite": "adequate|a_remplacer|urgente", "detail": "..."}],
+  "mesures_cles": {"hauteur_osseuse_ant_mm": null, "hauteur_osseuse_post_d_mm": null, "hauteur_osseuse_post_g_mm": null, "longueur_racine_exemple": null, "note_mesures": "Estimations visuelles uniquement — mesures précises sur logiciel dédié"},
+  "anomalies_autres": ["..."],
+  "score_global_radio": 0,
+  "niveau_urgence_global": "aucune|faible|moderee|elevee|urgence_immediate",
+  "rapport_narratif": "Texte clinique structuré de 3-5 paragraphes, professionnel, intégrant tous les findings clés dans l'ordre de priorité clinique.",
+  "plan_traitement_suggere": [{"priorite": 1, "acte": "...", "dents": [0], "delai_suggere": "immédiat|sous_2semaines|1_mois|3_mois|6_mois|surveillance", "justification": "..."}],
+  "correlation_microbiome": {"p_gingivalis_coherent": true, "s_mutans_coherent": true, "commentaire": "Cohérence entre profil radiologique et données microbiome"},
+  "confiance_analyse": "elevee|moderee|faible",
+  "disclaimer": "Aide à la décision radiologique. Interprétation définitive par le praticien qualifié sur cliché original."
+}"""
+
+def analyser_radio(image_bytes, mime_type, type_radio="panoramique", contexte_patient=None):
+    """Analyse radiologique IA via Claude Vision API."""
+    if not ANTHROPIC_API_KEY:
+        return {"error": "Clé API Anthropic manquante — configurez ANTHROPIC_API_KEY dans les secrets Streamlit."}
+    b64 = base64.standard_b64encode(image_bytes).decode()
+    ctx = ""
+    if contexte_patient:
+        ctx = (f"\n\nCONTEXTE PATIENT pour corrélation :\n"
+               f"- S. mutans : {contexte_patient.get('s_mutans','N/A')}% (normal < 3%)\n"
+               f"- P. gingivalis : {contexte_patient.get('p_gingivalis','N/A')}% (normal < 0.5%)\n"
+               f"- Diversité microbienne : {contexte_patient.get('diversite','N/A')}/100\n"
+               f"- Âge : {contexte_patient.get('age','N/A')} ans\n"
+               f"Utilise ces données pour remplir le champ correlation_microbiome.")
+    prompt = f"Analyse cette radiographie dentaire de type {type_radio}.{ctx}\nRéponds en JSON uniquement."
+    try:
+        r = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={"Content-Type":"application/json","x-api-key":ANTHROPIC_API_KEY,"anthropic-version":"2023-06-01"},
+            json={"model":"claude-sonnet-4-20250514","max_tokens":3000,"system":RADIO_SYSTEM_PROMPT,
+                  "messages":[{"role":"user","content":[
+                      {"type":"image","source":{"type":"base64","media_type":mime_type,"data":b64}},
+                      {"type":"text","text":prompt}
+                  ]}]},
+            timeout=45,
+        )
+        r.raise_for_status()
+        raw = r.json()["content"][0]["text"].strip()
+        raw = raw.replace("```json","").replace("```","").strip()
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        return {"error": f"Réponse IA non parsable : {str(e)}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _urgence_color(urgence):
+    return {"urgence_immediate":"#dc2626","elevee":"#ef4444","moderee":"#d97706",
+            "faible":"#f59e0b","aucune":"#16a34a","urgent":"#dc2626",
+            "traitement_programme":"#d97706","surveillance":"#16a34a"}.get(urgence, "#6b7280")
+
+def _urgence_label(urgence):
+    return {"urgence_immediate":"🚨 URGENT","elevee":"🔴 Élevée","moderee":"⚠️ Modérée",
+            "faible":"🟡 Faible","aucune":"🟢 Aucune","urgent":"🚨 Urgent",
+            "traitement_programme":"📅 Programmé","surveillance":"👁️ Surveillance"}.get(urgence, urgence)
+
+def _stade_color(stade):
+    return {"initiale":"#f59e0b","modérée":"#d97706","profonde":"#ef4444","pulpaire":"#dc2626"}.get(stade,"#6b7280")
+
+
+def render_radio_score_header(result, type_radio):
+    score   = result.get("score_global_radio", 50)
+    urgence = result.get("niveau_urgence_global", "moderee")
+    qualite = result.get("qualite_image", "bonne")
+    confiance = result.get("confiance_analyse","moderee")
+    sc = "#16a34a" if score >= 75 else "#d97706" if score >= 50 else "#e11d48"
+    uc = _urgence_color(urgence)
+    ul = _urgence_label(urgence)
+    type_label = "Panoramique OPG" if type_radio == "panoramique" else "Rétro-alvéolaire"
+    type_icon  = "🌐" if type_radio == "panoramique" else "🦷"
+    st.markdown(f"""
+    <div style="background:linear-gradient(135deg,#0a1628,#1a3a5c);border-radius:18px;padding:24px 32px;margin-bottom:20px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+            <div>
+                <div style="font-size:0.72rem;color:rgba(255,255,255,0.5);font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">{type_icon} Analyse IA · {type_label}</div>
+                <div style="font-family:'DM Serif Display',serif;font-size:2rem;color:white;line-height:1;">Rapport Radiologique</div>
+                <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+                    <span style="background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.8);padding:3px 10px;border-radius:12px;font-size:0.75rem;">📷 Qualité : {qualite}</span>
+                    <span style="background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.8);padding:3px 10px;border-radius:12px;font-size:0.75rem;">🎯 Confiance : {confiance}</span>
+                </div>
+            </div>
+            <div style="display:flex;gap:16px;align-items:center;">
+                <div style="background:rgba(255,255,255,0.08);border-radius:14px;padding:16px 20px;text-align:center;">
+                    <div style="font-size:0.68rem;color:rgba(255,255,255,0.5);text-transform:uppercase;font-weight:700;margin-bottom:4px;">Score Radio</div>
+                    <div style="font-family:'DM Serif Display',serif;font-size:2.4rem;color:{sc};line-height:1;">{score}</div>
+                    <div style="font-size:0.68rem;color:rgba(255,255,255,0.4);">/100</div>
+                </div>
+                <div style="background:{uc}22;border:2px solid {uc};border-radius:14px;padding:16px 20px;text-align:center;">
+                    <div style="font-size:0.68rem;color:rgba(255,255,255,0.5);text-transform:uppercase;font-weight:700;margin-bottom:4px;">Urgence</div>
+                    <div style="font-size:1.1rem;font-weight:800;color:{uc};">{ul}</div>
+                </div>
+            </div>
+        </div>
+    </div>""", unsafe_allow_html=True)
+
+
+def render_radio_dents_visibles(result):
+    dents = result.get("dents_visibles", [])
+    if not dents: return
+    st.markdown("#### 🦷 Dents Identifiées")
+    # Regrouper par quadrant
+    quadrants = {1:[], 2:[], 3:[], 4:[]}
+    for d in dents:
+        num = d.get("num_fdi", 0)
+        if 11 <= num <= 18: quadrants[1].append(d)
+        elif 21 <= num <= 28: quadrants[2].append(d)
+        elif 31 <= num <= 38: quadrants[3].append(d)
+        elif 41 <= num <= 48: quadrants[4].append(d)
+    q_labels = {1:"Q1 — Haut Droite",2:"Q2 — Haut Gauche",3:"Q3 — Bas Gauche",4:"Q4 — Bas Droite"}
+    q_cols = st.columns(4)
+    for q, col in zip([1,2,3,4], q_cols):
+        with col:
+            st.markdown(f"<div style='font-size:0.72rem;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:6px;'>{q_labels[q]}</div>", unsafe_allow_html=True)
+            if not quadrants[q]:
+                st.markdown("<div style='font-size:0.78rem;color:#d1d5db;font-style:italic;'>Non visible</div>", unsafe_allow_html=True)
+            else:
+                for d in sorted(quadrants[q], key=lambda x: x.get("num_fdi",0)):
+                    etat = d.get("etat_general","saine")
+                    ec = {"saine":"#16a34a","restaurée":"#2563eb","cariée":"#dc2626",
+                          "absente":"#94a3b8","traitée":"#7c3aed"}.get(etat,"#6b7280")
+                    present = d.get("present", True)
+                    op = "1" if present else "0.4"
+                    st.markdown(f"""<div style="display:flex;align-items:center;gap:6px;margin:3px 0;opacity:{op};">
+                        <div style="background:{ec};color:white;border-radius:5px;padding:1px 6px;font-size:0.7rem;font-weight:800;font-family:monospace;min-width:26px;text-align:center;">{d.get('num_fdi','')}</div>
+                        <div style="font-size:0.75rem;color:#374151;">{etat}</div>
+                    </div>""", unsafe_allow_html=True)
+    nb_presentes = sum(1 for d in dents if d.get("present", True))
+    nb_absentes  = sum(1 for d in dents if not d.get("present", True))
+    st.caption(f"👁️ {len(dents)} dents analysées · {nb_presentes} présentes · {nb_absentes} absentes/non visibles")
+
+
+def render_radio_caries(result):
+    caries = result.get("caries_detectees", [])
+    if not caries:
+        st.success("✅ Aucune carie détectée sur ce cliché.")
+        return
+    nb_urgent = sum(1 for c in caries if c.get("urgence") == "urgent")
+    nb_prog   = sum(1 for c in caries if c.get("urgence") == "traitement_programme")
+    st.markdown(f"""
+    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+        <div style="background:#fef2f2;border:1.5px solid #dc2626;border-radius:10px;padding:12px 18px;text-align:center;min-width:100px;">
+            <div style="font-family:'DM Serif Display',serif;font-size:1.8rem;color:#dc2626;">{len(caries)}</div>
+            <div style="font-size:0.72rem;color:#991b1b;font-weight:700;">Caries détectées</div>
+        </div>
+        <div style="background:#fff1f2;border:1.5px solid #f43f5e30;border-radius:10px;padding:12px 18px;text-align:center;min-width:100px;">
+            <div style="font-family:'DM Serif Display',serif;font-size:1.8rem;color:#e11d48;">{nb_urgent}</div>
+            <div style="font-size:0.72rem;color:#be123c;font-weight:700;">Urgentes</div>
+        </div>
+        <div style="background:#fffbeb;border:1.5px solid #d9770630;border-radius:10px;padding:12px 18px;text-align:center;min-width:100px;">
+            <div style="font-family:'DM Serif Display',serif;font-size:1.8rem;color:#d97706;">{nb_prog}</div>
+            <div style="font-size:0.72rem;color:#92400e;font-weight:700;">Programmées</div>
+        </div>
+    </div>""", unsafe_allow_html=True)
+    for c in sorted(caries, key=lambda x: {"urgent":0,"traitement_programme":1,"surveillance":2}.get(x.get("urgence","surveillance"),3)):
+        dent  = c.get("dent_fdi", "?")
+        loc   = c.get("localisation", "")
+        stade = c.get("stade", "")
+        urg   = c.get("urgence", "surveillance")
+        detail= c.get("detail", "")
+        sc    = _stade_color(stade)
+        uc    = _urgence_color(urg)
+        st.markdown(f"""<div style="background:#fff;border:1px solid {uc}30;border-left:4px solid {uc};border-radius:10px;padding:14px 18px;margin:8px 0;display:flex;align-items:flex-start;gap:14px;">
+            <div style="background:{sc};color:white;border-radius:8px;padding:4px 8px;font-size:0.9rem;font-weight:800;font-family:monospace;flex-shrink:0;min-width:32px;text-align:center;">{dent}</div>
+            <div style="flex:1;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px;">
+                    <div><span style="font-weight:700;color:#111827;">Carie {stade}</span> · <span style="color:#6b7280;font-size:0.85rem;">{loc}</span></div>
+                    <span style="background:{uc}15;color:{uc};font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:10px;">{_urgence_label(urg)}</span>
+                </div>
+                {f'<div style="font-size:0.83rem;color:#374151;margin-top:4px;">{detail}</div>' if detail else ''}
+            </div>
+        </div>""", unsafe_allow_html=True)
+
+
+def render_radio_perte_osseuse(result):
+    po = result.get("perte_osseuse", {})
+    if not po or not po.get("present", False):
+        st.success("✅ Aucune perte osseuse significative détectée.")
+        return
+    sev   = po.get("severite", "aucune")
+    typ   = po.get("type", "horizontale")
+    zones = po.get("zones_atteintes", [])
+    detail= po.get("detail", "")
+    mesures = po.get("mesures_estimees", {})
+    sev_c = {"severe":"#dc2626","moderee":"#d97706","legere":"#f59e0b","aucune":"#16a34a"}.get(sev,"#6b7280")
+    sev_l = {"severe":"🔴 Sévère (> 6mm)","moderee":"🟠 Modérée (3-6mm)","legere":"🟡 Légère (< 3mm)","aucune":"🟢 Aucune"}.get(sev,"")
+    typ_l = {"horizontale":"📐 Horizontale","verticale":"📏 Verticale","mixte":"📊 Mixte","aucune":"Aucune"}.get(typ, typ)
+    st.markdown(f"""
+    <div style="background:linear-gradient(135deg,{sev_c}12,{sev_c}06);border:2px solid {sev_c}40;border-radius:14px;padding:20px 24px;margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+            <div>
+                <div style="font-size:0.72rem;color:#6b7280;font-weight:700;text-transform:uppercase;margin-bottom:4px;">Perte Osseuse Alvéolaire</div>
+                <div style="font-family:'DM Serif Display',serif;font-size:1.6rem;color:{sev_c};">{sev_l}</div>
+                <div style="font-size:0.85rem;color:#374151;margin-top:4px;">{typ_l}</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.8);border-radius:10px;padding:12px 16px;">
+                <div style="font-size:0.7rem;color:#6b7280;font-weight:700;margin-bottom:6px;">ZONES ATTEINTES</div>
+                {"".join(f'<div style="font-size:0.82rem;color:#374151;margin:2px 0;">• {z}</div>' for z in zones) if zones else '<div style="font-size:0.82rem;color:#9ca3af;">Non précisé</div>'}
+            </div>
+        </div>
+        {f'<div style="margin-top:12px;font-size:0.85rem;color:#374151;border-top:1px solid {sev_c}20;padding-top:10px;">{detail}</div>' if detail else ''}
+    </div>""", unsafe_allow_html=True)
+    if any(mesures.get(k) for k in ["sextant_anterieur","sextant_posterieur_droit","sextant_posterieur_gauche"]):
+        st.markdown("##### 📏 Estimations Hauteur Osseuse")
+        mc = st.columns(3)
+        for col, (key, label, icon) in zip(mc, [
+            ("sextant_anterieur","Sextant Antérieur","⬆️"),
+            ("sextant_posterieur_droit","Secteur Postérieur Droit","↗️"),
+            ("sextant_posterieur_gauche","Secteur Postérieur Gauche","↖️"),
+        ]):
+            val = mesures.get(key, "N/A")
+            col.markdown(f"""<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:12px;text-align:center;">
+                <div style="font-size:0.7rem;color:#6b7280;font-weight:700;margin-bottom:4px;">{icon} {label}</div>
+                <div style="font-size:1rem;font-weight:700;color:#1a3a5c;">{val}</div>
+            </div>""", unsafe_allow_html=True)
+        st.caption("⚠️ Estimations visuelles — mesures précises sur logiciel radio dédié (Trophy, Romexis, Carestream...)")
+
+
+def render_radio_lesions_apicales(result):
+    lesions = result.get("lesions_apicales", [])
+    if not lesions:
+        st.success("✅ Aucune lésion péri-apicale détectée.")
+        return
+    for l in lesions:
+        dent   = l.get("dent_fdi", "?")
+        typ    = l.get("type", "")
+        taille = l.get("taille_mm", "?")
+        urg    = l.get("urgence", "surveillance")
+        detail = l.get("detail","")
+        uc     = _urgence_color(urg)
+        typ_icon = {"granulome":"🔵","kyste":"⭕","abces":"🔴","cicatrice":"⬜"}.get(typ,"●")
+        st.markdown(f"""<div style="background:#fff;border:1px solid {uc}30;border-left:4px solid {uc};border-radius:10px;padding:14px 18px;margin:8px 0;">
+            <div style="display:flex;align-items:center;gap:12px;">
+                <div style="background:{uc};color:white;border-radius:8px;padding:4px 8px;font-weight:800;font-family:monospace;font-size:0.9rem;">{dent}</div>
+                <div><div style="font-weight:700;">{typ_icon} {typ.capitalize()} ({taille} mm)</div>
+                <div style="font-size:0.83rem;color:#6b7280;">{detail}</div></div>
+                <span style="margin-left:auto;background:{uc}15;color:{uc};font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:10px;">{_urgence_label(urg)}</span>
+            </div>
+        </div>""", unsafe_allow_html=True)
+
+
+def render_radio_sagesses(result):
+    sagesses = result.get("sagesses", [])
+    if not sagesses: return
+    need_action = [s for s in sagesses if s.get("recommandation") not in ["aucune","surveillance"]]
+    if not need_action:
+        st.info(f"ℹ️ {len(sagesses)} dent(s) de sagesse — aucune extraction urgente recommandée.")
+        return
+    for s in sagesses:
+        dent   = s.get("dent_fdi","?")
+        statut = s.get("statut","")
+        reco   = s.get("recommandation","surveillance")
+        detail = s.get("detail","")
+        rc     = _urgence_color(reco)
+        statut_label = statut.replace("_"," ").capitalize()
+        reco_label   = reco.replace("_"," ").capitalize()
+        st.markdown(f"""<div style="background:#faf5ff;border:1px solid #a855f730;border-left:4px solid #a855f7;border-radius:10px;padding:12px 16px;margin:6px 0;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="background:#a855f7;color:white;border-radius:6px;padding:2px 7px;font-weight:800;font-family:monospace;">{dent}</div>
+                <div><div style="font-weight:600;">{statut_label}</div>
+                <div style="font-size:0.82rem;color:#6b7280;">{detail}</div></div>
+                <span style="margin-left:auto;background:{rc}15;color:{rc};font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:10px;">{reco_label}</span>
+            </div>
+        </div>""", unsafe_allow_html=True)
+
+
+def render_radio_plan_traitement(result):
+    plan = result.get("plan_traitement_suggere", [])
+    if not plan:
+        st.info("Aucun plan de traitement généré.")
+        return
+    delai_c = {
+        "immédiat":"#dc2626","sous_2semaines":"#ef4444","1_mois":"#d97706",
+        "3_mois":"#f59e0b","6_mois":"#2563eb","surveillance":"#16a34a"
+    }
+    for acte in sorted(plan, key=lambda x: x.get("priorite", 99)):
+        prio   = acte.get("priorite", "—")
+        nom_a  = acte.get("acte","")
+        dents  = acte.get("dents",[])
+        delai  = acte.get("delai_suggere","surveillance")
+        justif = acte.get("justification","")
+        dc     = delai_c.get(delai,"#6b7280")
+        dents_str = " · ".join(f"<span style='background:#1a3a5c;color:white;border-radius:4px;padding:1px 5px;font-size:0.7rem;font-family:monospace;'>{d}</span>" for d in dents) if dents else ""
+        st.markdown(f"""<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px 20px;margin:8px 0;display:flex;align-items:flex-start;gap:14px;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+            <div style="background:linear-gradient(135deg,#1a3a5c,#2563eb);color:white;border-radius:10px;padding:8px 10px;font-family:'DM Serif Display',serif;font-size:1.3rem;line-height:1;flex-shrink:0;min-width:36px;text-align:center;">{prio}</div>
+            <div style="flex:1;">
+                <div style="font-weight:700;font-size:0.95rem;color:#111827;margin-bottom:4px;">{nom_a}</div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+                    {dents_str}
+                    <span style="background:{dc}15;color:{dc};font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:10px;">⏱ {delai.replace('_',' ')}</span>
+                </div>
+                {f'<div style="font-size:0.83rem;color:#6b7280;font-style:italic;">{justif}</div>' if justif else ''}
+            </div>
+        </div>""", unsafe_allow_html=True)
+
+
+def render_radio_correlation_microbiome(result, patient):
+    correl = result.get("correlation_microbiome", {})
+    if not correl: return
+    sm = patient.get("s_mutans",0); pg = patient.get("p_gingivalis",0)
+    pg_ok = correl.get("p_gingivalis_coherent", True)
+    sm_ok = correl.get("s_mutans_coherent", True)
+    commentaire = correl.get("commentaire","")
+    st.markdown(f"""
+    <div style="background:linear-gradient(135deg,#f0f9ff,#e0f2fe);border:1.5px solid #bae6fd;border-radius:14px;padding:18px 22px;">
+        <div style="font-size:0.72rem;color:#0369a1;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">🧬 Corrélation Radiologie ↔ Microbiome</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;">
+            <div style="background:{'#f0fdf4' if sm_ok else '#fef2f2'};border:1px solid {'#16a34a' if sm_ok else '#dc2626'}40;border-radius:10px;padding:10px 14px;flex:1;min-width:160px;">
+                <div style="font-size:0.7rem;font-weight:700;color:{'#166534' if sm_ok else '#991b1b'};margin-bottom:4px;">S. MUTANS ({sm}%)</div>
+                <div style="font-size:0.85rem;color:#374151;">{'✅ Cohérent avec la radio' if sm_ok else '⚠️ Divergence possible'}</div>
+            </div>
+            <div style="background:{'#f0fdf4' if pg_ok else '#fef2f2'};border:1px solid {'#16a34a' if pg_ok else '#dc2626'}40;border-radius:10px;padding:10px 14px;flex:1;min-width:160px;">
+                <div style="font-size:0.7rem;font-weight:700;color:{'#166534' if pg_ok else '#991b1b'};margin-bottom:4px;">P. GINGIVALIS ({pg}%)</div>
+                <div style="font-size:0.85rem;color:#374151;">{'✅ Cohérent avec la radio' if pg_ok else '⚠️ Divergence possible'}</div>
+            </div>
+        </div>
+        {f'<div style="font-size:0.85rem;color:#0c4a6e;background:rgba(255,255,255,0.7);border-radius:8px;padding:10px 12px;">{commentaire}</div>' if commentaire else ''}
+    </div>""", unsafe_allow_html=True)
+
+
+def render_radio_rapport_narratif(result):
+    rapport = result.get("rapport_narratif","")
+    if not rapport: return
+    st.markdown(f"""
+    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:24px 28px;line-height:1.75;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+        <div style="font-family:'DM Serif Display',serif;font-size:1.1rem;color:#1a3a5c;margin-bottom:14px;border-bottom:1px solid #e5e7eb;padding-bottom:10px;">📝 Rapport Clinique IA</div>
+        <div style="font-size:0.9rem;color:#374151;">{rapport.replace(chr(10), '<br>')}</div>
+    </div>""", unsafe_allow_html=True)
+    disc = result.get("disclaimer","")
+    if disc: st.caption(f"⚕️ *{disc}*")
+
+
+def render_radio_full_analysis(result, type_radio, patient=None, context="praticien"):
+    """Render complet du rapport radio — utilisé dans onglet praticien ET patient."""
+    if "error" in result:
+        st.error(f"⚠️ Erreur d'analyse : {result['error']}")
+        return
+
+    render_radio_score_header(result, type_radio)
+
+    tab_labels = ["🦷 Dents","🦠 Caries","🩸 Os Alvéolaire","⚠️ Lésions Apicales",
+                  "🧠 Sagesses","📋 Plan Traitement","📝 Rapport Narratif"]
+    if context == "praticien" and patient:
+        tab_labels.append("🧬 Corrélation Microbiome")
+
+    tabs_radio = st.tabs(tab_labels)
+    with tabs_radio[0]: render_radio_dents_visibles(result)
+    with tabs_radio[1]: render_radio_caries(result)
+    with tabs_radio[2]: render_radio_perte_osseuse(result)
+    with tabs_radio[3]: render_radio_lesions_apicales(result)
+    with tabs_radio[4]: render_radio_sagesses(result)
+    with tabs_radio[5]: render_radio_plan_traitement(result)
+    with tabs_radio[6]: render_radio_rapport_narratif(result)
+    if context == "praticien" and patient and len(tabs_radio) > 7:
+        with tabs_radio[7]: render_radio_correlation_microbiome(result, patient)
+
+    # Anomalies autres
+    autres = result.get("anomalies_autres", [])
+    if autres and autres != [""]:
+        st.markdown("---")
+        st.markdown("#### 🔍 Autres Anomalies")
+        for a in autres:
+            if a: st.markdown(f"- {a}")
+
+
+def render_radio_uploader(pid, patient=None, context="praticien"):
+    """Interface d'upload et déclenchement d'analyse radio — réutilisable praticien et patient."""
+    key_prefix = f"{context}_radio_{pid}"
+    result_key = f"{key_prefix}_result"
+    type_key   = f"{key_prefix}_type"
+
+    st.markdown("""
+    <div style="background:linear-gradient(135deg,#0a1628,#1e3a5f);border-radius:16px;padding:22px 28px;margin-bottom:20px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-size:2rem;">🩻</span>
+            <div>
+                <div style="font-family:'DM Serif Display',serif;font-size:1.3rem;color:white;">Analyse Radiologique IA</div>
+                <div style="font-size:0.82rem;color:rgba(255,255,255,0.6);">OPG Panoramique · Rétro-alvéolaires · Powered by Claude Vision</div>
+            </div>
+        </div>
+    </div>""", unsafe_allow_html=True)
+
+    # Type de radio
+    type_radio = st.radio(
+        "Type de radiographie",
+        options=["panoramique","retro_alveolaire"],
+        format_func=lambda x: "🌐 Panoramique / OPG" if x == "panoramique" else "🦷 Rétro-alvéolaire",
+        horizontal=True,
+        key=f"{key_prefix}_type_sel"
+    )
+
+    # Upload
+    col_up, col_info = st.columns([2, 1])
+    with col_up:
+        uploaded = st.file_uploader(
+            "Importer la radiographie",
+            type=["jpg","jpeg","png","webp","bmp"],
+            key=f"{key_prefix}_upload",
+            label_visibility="visible",
+            help="Format JPEG, PNG ou WebP · Max 20 Mo"
+        )
+    with col_info:
+        st.markdown(f"""
+        <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:14px 16px;margin-top:4px;">
+            <div style="font-size:0.72rem;color:#0369a1;font-weight:700;margin-bottom:8px;">CONSEILS IMPORT</div>
+            <div style="font-size:0.78rem;color:#0c4a6e;line-height:1.5;">
+                🔹 Export JPEG depuis votre logiciel radio<br>
+                🔹 Résolution minimale : 800px<br>
+                🔹 Contraste suffisant (pas de surexposition)<br>
+                🔹 {"OPG : vue complète arcade recommandée" if type_radio=="panoramique" else "Rétro : 2-4 dents idéalement"}
+            </div>
+        </div>""", unsafe_allow_html=True)
+
+    if uploaded:
+        img_bytes = uploaded.read()
+        mime = "image/png" if uploaded.name.lower().endswith(".png") else "image/jpeg"
+
+        col_prev, col_act = st.columns([1, 1])
+        with col_prev:
+            st.image(img_bytes, caption=f"Radio importée — {uploaded.name}", use_container_width=True)
+        with col_act:
+            st.markdown(f"""
+            <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:16px;">
+                <div style="font-size:0.72rem;color:#6b7280;font-weight:700;margin-bottom:8px;">FICHIER IMPORTÉ</div>
+                <div style="font-size:0.85rem;color:#374151;">📄 {uploaded.name}</div>
+                <div style="font-size:0.78rem;color:#9ca3af;margin-top:2px;">Taille : {len(img_bytes)/1024:.1f} Ko</div>
+                <div style="font-size:0.78rem;color:#9ca3af;">Type : {mime}</div>
+                <div style="font-size:0.78rem;color:#0369a1;margin-top:6px;">
+                    {"🌐 Analyse OPG — Vue complète" if type_radio=='panoramique' else "🦷 Analyse Rétro-alvéolaire"}
+                </div>
+            </div>""", unsafe_allow_html=True)
+            already = st.session_state.get(result_key)
+            btn_label = "🔄 Relancer l'analyse" if already else "🤖 Lancer l'analyse IA"
+            if st.button(btn_label, use_container_width=True, type="primary", key=f"{key_prefix}_run"):
+                with st.spinner("🩻 Analyse radiologique en cours... (15-25 secondes)"):
+                    st.session_state[result_key] = analyser_radio(img_bytes, mime, type_radio, patient)
+                    st.session_state[type_key]   = type_radio
+                st.rerun()
+
+    # Démo
+    elif st.button("🩻 Voir une démo d'analyse", key=f"{key_prefix}_demo", use_container_width=True):
+        st.session_state[result_key] = _demo_radio_result(type_radio)
+        st.session_state[type_key]   = type_radio
+        st.rerun()
+
+    st.markdown("---")
+
+    # Résultats
+    if st.session_state.get(result_key):
+        result     = st.session_state[result_key]
+        type_saved = st.session_state.get(type_key, type_radio)
+        render_radio_full_analysis(result, type_saved, patient=patient, context=context)
+
+        # Export PDF / données
+        if context == "praticien":
+            st.markdown("---")
+            col_pdf, col_clear = st.columns(2)
+            with col_pdf:
+                if st.button("📥 Intégrer au rapport PDF patient", use_container_width=True, type="primary", key=f"{key_prefix}_pdf"):
+                    if "radio_results" not in st.session_state: st.session_state.radio_results = {}
+                    st.session_state.radio_results[pid] = {"result": result, "type": type_saved, "date": date.today().strftime("%d/%m/%Y")}
+                    st.success("✅ Analyse radio enregistrée dans le dossier patient — disponible dans le PDF.")
+            with col_clear:
+                if st.button("🗑️ Effacer l'analyse", use_container_width=True, key=f"{key_prefix}_clear"):
+                    del st.session_state[result_key]
+                    st.rerun()
+
+
+def _demo_radio_result(type_radio):
+    """Résultat de démo réaliste selon le type de radio."""
+    if type_radio == "panoramique":
+        return {
+            "type_radio":"panoramique","qualite_image":"bonne","confiance_analyse":"moderee",
+            "dents_visibles":[
+                {"num_fdi":11,"nom":"Incisive centrale sup droite","etat_general":"saine","present":True},
+                {"num_fdi":12,"nom":"Incisive latérale sup droite","etat_general":"restaurée","present":True},
+                {"num_fdi":16,"nom":"Première molaire sup droite","etat_general":"cariée","present":True},
+                {"num_fdi":21,"nom":"Incisive centrale sup gauche","etat_general":"saine","present":True},
+                {"num_fdi":26,"nom":"Première molaire sup gauche","etat_general":"restaurée","present":True},
+                {"num_fdi":36,"nom":"Première molaire inf gauche","etat_general":"traitée","present":True},
+                {"num_fdi":38,"nom":"Sagesse inf gauche","etat_general":"absente","present":False},
+                {"num_fdi":46,"nom":"Première molaire inf droite","etat_general":"restaurée","present":True},
+                {"num_fdi":48,"nom":"Sagesse inf droite","etat_general":"saine","present":True},
+            ],
+            "caries_detectees":[
+                {"dent_fdi":16,"localisation":"interproximale","stade":"profonde","urgence":"urgent","detail":"Carie distale profonde approchant la pulpe — soin urgent recommandé"},
+                {"dent_fdi":26,"localisation":"occlusale","stade":"modérée","urgence":"traitement_programme","detail":"Carie sous joint de couronne défaillant"},
+                {"dent_fdi":45,"localisation":"cervicale","stade":"initiale","urgence":"surveillance","detail":"Lésion cervicale débutante — reminéralisation possible"},
+            ],
+            "perte_osseuse":{"present":True,"type":"horizontale","severite":"moderee","zones_atteintes":["Secteur postérieur droit","Secteur postérieur gauche"],"mesures_estimees":{"sextant_anterieur":"Niveau conservé","sextant_posterieur_droit":"Perte estimée 3-4mm","sextant_posterieur_gauche":"Perte estimée 3mm"},"detail":"Perte osseuse horizontale modérée diffuse dans les secteurs postérieurs, compatible avec une parodontite chronique de stade II."},
+            "lesions_apicales":[
+                {"dent_fdi":36,"type":"granulome","taille_mm":4,"urgence":"traitement_endodontique","detail":"Image péri-apicale arrondie — granulome probable, retraitement endodontique à envisager"},
+            ],
+            "sagesses":[
+                {"dent_fdi":48,"statut":"angulation_mesiale","recommandation":"extraction_preventive","detail":"Dent de sagesse en angulation mésiale avec contact sur la 47 — extraction préventive recommandée à discuter"},
+            ],
+            "restaurations":[
+                {"dent_fdi":26,"type":"couronne","qualite":"a_remplacer","detail":"Joint de couronne ouvert — infiltration cariogène visible"},
+                {"dent_fdi":46,"type":"amalgame","qualite":"adequate","detail":"Amalgame occlusal stable"},
+            ],
+            "mesures_cles":{"hauteur_osseuse_ant_mm":"~14mm","hauteur_osseuse_post_d_mm":"~10mm","hauteur_osseuse_post_g_mm":"~11mm","longueur_racine_exemple":"16 FDI ≈ 16mm","note_mesures":"Estimations visuelles — mesures précises sur logiciel dédié"},
+            "anomalies_autres":["Asymétrie légère du condyle droit — surveillance","Sinus maxillaire gauche légèrement opacifié — suivi ORL si symptômes"],
+            "score_global_radio":52,"niveau_urgence_global":"elevee",
+            "rapport_narratif":"L'examen panoramique révèle une denture de 28 dents avec une dent de sagesse inférieure gauche absente et la 38 incluse non visible. La situation carieuse présente trois lésions dont une urgente en 16 nécessitant une intervention immédiate.\n\nL'os alvéolaire montre une perte modérée dans les secteurs postérieurs, compatible avec une parodontite chronique de stade II. Cette atteinte parodontale est cohérente avec les données microbiomes montrant un taux élevé de P. gingivalis.\n\nUne image péri-apicale en 36 suggère un granulome nécessitant une réévaluation endodontique. La couronne en 26 présente un joint défaillant à reprendre à court terme.\n\nPlan de traitement suggéré : 1) Soin urgent 16, 2) Bilan parodontal approfondi + sondage, 3) Retraitement 36, 4) Remake couronne 26, 5) Discussion extraction 48.",
+            "plan_traitement_suggere":[
+                {"priorite":1,"acte":"Soin carie profonde","dents":[16],"delai_suggere":"immédiat","justification":"Carie profonde pulpaire imminente"},
+                {"priorite":2,"acte":"Bilan parodontal + sondage complet","dents":[],"delai_suggere":"sous_2semaines","justification":"Perte osseuse modérée diffuse"},
+                {"priorite":3,"acte":"Évaluation endodontique / retraitement","dents":[36],"delai_suggere":"1_mois","justification":"Lésion péri-apicale granulomateuse"},
+                {"priorite":4,"acte":"Remake couronne","dents":[26],"delai_suggere":"3_mois","justification":"Joint défaillant avec infiltration"},
+                {"priorite":5,"acte":"Extraction préventive sagesse","dents":[48],"delai_suggere":"6_mois","justification":"Angulation mésiale — contact 47"},
+            ],
+            "correlation_microbiome":{"p_gingivalis_coherent":True,"s_mutans_coherent":True,"commentaire":"La perte osseuse parodontale modérée est cohérente avec le taux élevé de P. gingivalis. Les 3 caries détectées corrèlent avec le S. mutans élevé du patient."},
+            "disclaimer":"Résultat de démonstration — Analyse IA aide à la décision uniquement. Diagnostic définitif par le praticien sur cliché original.",
+        }
+    else:
+        return {
+            "type_radio":"retro_alveolaire","qualite_image":"bonne","confiance_analyse":"elevee",
+            "dents_visibles":[
+                {"num_fdi":14,"nom":"Première prémolaire sup droite","etat_general":"saine","present":True},
+                {"num_fdi":15,"nom":"Deuxième prémolaire sup droite","etat_general":"restaurée","present":True},
+                {"num_fdi":16,"nom":"Première molaire sup droite","etat_general":"cariée","present":True},
+                {"num_fdi":17,"nom":"Deuxième molaire sup droite","etat_general":"restaurée","present":True},
+            ],
+            "caries_detectees":[
+                {"dent_fdi":16,"localisation":"interproximale","stade":"profonde","urgence":"urgent","detail":"Carie mésiale profonde, distance pulpe < 1mm — traitement immédiat nécessaire"},
+                {"dent_fdi":15,"localisation":"interproximale","stade":"initiale","urgence":"surveillance","detail":"Déminéralisation interproximale débutante disto-15"},
+            ],
+            "perte_osseuse":{"present":True,"type":"verticale","severite":"legere","zones_atteintes":["Distal 16","Mésial 17"],"mesures_estimees":{"sextant_anterieur":"N/A — hors champ","sextant_posterieur_droit":"Perte verticale estimée 2-3mm 16D","sextant_posterieur_gauche":"N/A — hors champ"},"detail":"Défect osseux vertical léger en distal 16, profondeur estimée 2-3mm — sondage clinique recommandé pour confirmer."},
+            "lesions_apicales":[],"sagesses":[],
+            "restaurations":[
+                {"dent_fdi":17,"type":"composite","qualite":"adequate","detail":"Composite occlusal étanche"},
+                {"dent_fdi":15,"type":"inlay","qualite":"a_remplacer","detail":"Inlay avec micro-infiltration visible en mésial"},
+            ],
+            "mesures_cles":{"hauteur_osseuse_ant_mm":None,"hauteur_osseuse_post_d_mm":"~12mm (16), ~13mm (17)","hauteur_osseuse_post_g_mm":None,"longueur_racine_exemple":"16 ≈ 15-16mm estimé","note_mesures":"Estimations visuelles — calibration nécessaire sur logiciel radio"},
+            "anomalies_autres":[],"score_global_radio":60,"niveau_urgence_global":"elevee",
+            "rapport_narratif":"Ce cliché rétro-alvéolaire du secteur postérieur droit supérieur (14-17) révèle une situation carieuse nécessitant une prise en charge rapide.\n\nLa lésion carieuse en 16 mésial est profonde, approchant dangereusement la pulpe — une endodontie peut être nécessaire si l'exposition pulpaire est confirmée à l'ouverture. Un soin en urgence est recommandé.\n\nUn début de déminéralisation interproximale est visible en 15 distal — une application de vernis fluoré et une surveillance à 6 mois sont suggérées.\n\nL'inlay en 15 mésial présente une micro-infiltration à repolir ou à remplacer à court terme pour éviter une évolution carieuse.",
+            "plan_traitement_suggere":[
+                {"priorite":1,"acte":"Soin carie profonde ± endodontie","dents":[16],"delai_suggere":"immédiat","justification":"Carie approchant la pulpe — risque d'exposition"},
+                {"priorite":2,"acte":"Application vernis fluoré + surveillance","dents":[15],"delai_suggere":"1_mois","justification":"Lésion initiale — reminéralisation possible"},
+                {"priorite":3,"acte":"Remplacement inlay","dents":[15],"delai_suggere":"3_mois","justification":"Micro-infiltration sous inlay existant"},
+            ],
+            "correlation_microbiome":{"p_gingivalis_coherent":True,"s_mutans_coherent":True,"commentaire":"La carie profonde en 16 est cohérente avec un taux de S. mutans élevé. Le défect osseux vertical léger corrèle avec la présence de P. gingivalis."},
+            "disclaimer":"Résultat de démonstration — Analyse IA aide à la décision uniquement. Diagnostic définitif par le praticien sur cliché original.",
+        }
+
 # ── ANALYSE PHOTO ─────────────────────────────────────────────────────────────
 def analyser_photo_bouche(image_bytes, mime_type="image/jpeg"):
     if not ANTHROPIC_API_KEY: return {"error":"Clé API Anthropic manquante."}
@@ -1968,7 +2547,7 @@ def render_portail_patient():
         {"🟢 Stable" if not (sm>3 or pg>0.5 or div<50) else "🔴 Alerte"}</span></div></div>""", unsafe_allow_html=True)
 
     # Onglets patient (12)
-    tab_labels = [t("pat_profile"),t("pat_systemic"),t("pat_photo"),t("pat_actions"),
+    tab_labels = [t("pat_profile"),t("pat_systemic"),t("pat_photo"),"🩻 Mes Radios",t("pat_actions"),
                   t("pat_nutrition"),t("pat_anamnes"),t("pat_twin"),t("pat_share"),t("pat_pdf"),
                   t("pat_observance"),t("pat_iot"),t("pat_privisite")]
     tabs = st.tabs(tab_labels)
@@ -2038,8 +2617,14 @@ def render_portail_patient():
             st.rerun()
         if f"photo_result_{pid}" in st.session_state and not uploaded: render_photo_analysis(st.session_state[f"photo_result_{pid}"])
 
-    # ── 4. Plan d'Action ───────────────────────────────────────────
+    # ── 3b. Radios ─────────────────────────────────────────────────
     with tabs[3]:
+        st.markdown("### 🩻 Mes Radiographies")
+        st.caption("Importez vos clichés fournis par votre cabinet. L'IA analyse caries, os alvéolaire, dents et génère un rapport clinique.")
+        render_radio_uploader(pid, patient=p, context="patient")
+
+    # ── 4. Plan d'Action ───────────────────────────────────────────
+    with tabs[4]:
         st.markdown("### 🚨 Mes Actions Prioritaires")
         st.markdown(f"""<div class="{'reco-red' if (sm>3 or pg>0.5 or div<50) else 'reco-green'} reco-card">
             <b>{plan['profil_label']}</b><br><span style='font-size:0.9rem;'>{plan['profil_description']}</span>
@@ -2058,7 +2643,7 @@ def render_portail_patient():
                     🎯 <b>Bénéfice :</b> {pr['benefice']} · 🏪 <b>Produits :</b> {pr['marques']}</div></div>""", unsafe_allow_html=True)
 
     # ── 5. Nutrition ───────────────────────────────────────────────
-    with tabs[4]:
+    with tabs[5]:
         st.markdown("### 🥗 Nutrition & Probiotiques")
         n1, n2 = st.columns(2)
         with n1:
@@ -2077,7 +2662,7 @@ def render_portail_patient():
 - **Probiotiques alimentaires** (yaourt, kéfir) → réensemencent la flore après perturbation""")
 
     # ── 6. Anamnèse ────────────────────────────────────────────────
-    with tabs[5]:
+    with tabs[6]:
         st.markdown("### 📋 Mon Questionnaire de Santé")
         st.caption("Informations transmises de façon sécurisée à votre praticien")
         if anamnes.get("completed_at"): st.success(f"✅ Questionnaire rempli le {anamnes['completed_at'][:10]}.")
@@ -2107,11 +2692,11 @@ def render_portail_patient():
                 st.success("✅ Questionnaire enregistré et transmis à votre praticien !"); st.rerun()
 
     # ── 7. Twin ────────────────────────────────────────────────────
-    with tabs[6]:
+    with tabs[7]:
         render_twin_patient(p)
 
     # ── 8. Partager ────────────────────────────────────────────────
-    with tabs[7]:
+    with tabs[8]:
         st.markdown("### 📤 Partager mon Bilan")
         url = f"https://app.oralbiome.com/patient/{pid}"
         st.text_input("Lien de partage sécurisé", value=url, disabled=True)
@@ -2122,7 +2707,7 @@ def render_portail_patient():
         st.markdown("---"); st.info("🔒 Vos données sont protégées. Seul le destinataire peut accéder au rapport sécurisé.")
 
     # ── 9. PDF ─────────────────────────────────────────────────────
-    with tabs[8]:
+    with tabs[9]:
         st.markdown(f"### 📥 {t('pat_pdf')}")
         st.markdown("Téléchargez votre rapport personnel complet incluant tous vos résultats.")
         if st.button("Générer mon rapport PDF", type="primary", use_container_width=True):
@@ -2132,15 +2717,15 @@ def render_portail_patient():
                 st.download_button("📥 Télécharger le rapport", data=pdf_data, file_name=f"OralBiome_{nom.replace(' ','_')}_{date.today().strftime('%Y%m%d')}.pdf", mime="application/pdf", use_container_width=True, type="primary")
 
     # ── 10. Observance ─────────────────────────────────────────────
-    with tabs[9]:
+    with tabs[10]:
         render_observance_patient(pid, sm, pg, div)
 
     # ── 11. Brosse Connectée ───────────────────────────────────────
-    with tabs[10]:
+    with tabs[11]:
         render_iot_dashboard(p)
 
     # ── 12. Pré-Visite ─────────────────────────────────────────────
-    with tabs[11]:
+    with tabs[12]:
         render_salle_attente_patient(p)
 
 
@@ -2232,7 +2817,7 @@ def render_dossier_patient(nom, patients):
 
     # Onglets praticien (10)
     tab_labels = ["🧬 Risques Systémiques","🚨 Plan d'Action","🔬 Simulateur",
-                  "📸 Analyse Photo","📂 Historique & PDF","🦷 Twin Numérique",
+                  "📸 Analyse Photo","🩻 Radiographies IA","📂 Historique & PDF","🦷 Twin Numérique",
                   "📈 Observance","💊 Interactions","🏥 Salle d'Attente","📱 Objets Connectés"]
     tabs_prat = st.tabs(tab_labels)
 
@@ -2319,8 +2904,14 @@ def render_dossier_patient(nom, patients):
         if f"prat_photo_result_{pid}" in st.session_state and not uploaded:
             render_photo_analysis(st.session_state[f"prat_photo_result_{pid}"])
 
-    # ── 5. Historique & PDF ────────────────────────────────────────
+    # ── 4b. Radiographies IA ──────────────────────────────────────
     with tabs_prat[4]:
+        st.markdown(f"### 🩻 Radiographies IA — {nom}")
+        st.caption("Analysez les clichés OPG ou rétro-alvéolaires du patient · Détection caries, perte osseuse, lésions, plan de traitement IA")
+        render_radio_uploader(pid, patient=p, context="praticien")
+
+    # ── 5. Historique & PDF ────────────────────────────────────────
+    with tabs_prat[5]:
         st.markdown(f"### 📂 Historique — {nom}")
         if not hist.empty:
             st.dataframe(hist, use_container_width=True, hide_index=True)
@@ -2348,23 +2939,23 @@ def render_dossier_patient(nom, patients):
             if pdf_data: st.download_button("📥 Télécharger", data=pdf_data, file_name=f"OralBiome_{nom.replace(' ','_')}_{date.today().strftime('%Y%m%d')}.pdf", mime="application/pdf", use_container_width=True, type="primary")
 
     # ── 6. Twin Numérique ──────────────────────────────────────────
-    with tabs_prat[5]:
+    with tabs_prat[6]:
         render_twin_praticien(p)
 
     # ── 7. Observance ──────────────────────────────────────────────
-    with tabs_prat[6]:
+    with tabs_prat[7]:
         render_observance_praticien(p)
 
     # ── 8. Interactions ────────────────────────────────────────────
-    with tabs_prat[7]:
+    with tabs_prat[8]:
         render_interactions_medicamenteuses(p, anamnes_p)
 
     # ── 9. Salle d'Attente ─────────────────────────────────────────
-    with tabs_prat[8]:
+    with tabs_prat[9]:
         render_salle_attente_praticien(p)
 
     # ── 10. Objets Connectés ───────────────────────────────────────
-    with tabs_prat[9]:
+    with tabs_prat[10]:
         render_iot_dashboard(p)
 
 def render_portail_praticien():
